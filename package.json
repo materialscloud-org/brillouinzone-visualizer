@@ -26,7 +26,7 @@
     "url": "https://github.com/materialscloud-org/brillouinzone-visualizer.git"
   },
   "scripts": {
-    "prettier": "prettier --write \"**/*{.js,.jsx,.css,.json,.md}\"
+    "prettier": "prettier --write \"**/*{.js,.jsx,.css,.json,.md}\""
   },
   "dependencies": {
     "lodash": "^4.17.4"
