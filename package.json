@@ -1,14 +1,14 @@
 {
-  "name": "bz-visualizer",
+  "name": "brillouinzone-visualizer",
   "version": "0.1.0-beta.1",
   "description": "Javascript package of the Brillouin zone visualizer for the seekpath.",
   "keywords": [
     "seekpath",
     "Brillouin-Zone"
   ],
-  "homepage": "https://github.com/materialscloud-org/tool-seekpath",
+  "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
   "bugs": {
-    "url": "https://github.com/materialscloud-org/tool-seekpath/issues"
+    "url": "https://github.com/materialscloud-org/brillouinzone-visualizer/issues"
   },
   "license": "BSD-3-Clause",
   "author": {
@@ -23,7 +23,7 @@
   "style": "style/index.css",
   "repository": {
     "type": "git",
-    "url": "https://github.com/materialscloud-org/tool-seekpath.git"
+    "url": "https://github.com/materialscloud-org/brillouinzone-visualizer.git"
   },
   "scripts": {
     "prettier": "prettier --write \"**/*{.js,.jsx,.css,.json,.md}\"
