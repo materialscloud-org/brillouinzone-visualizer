@@ -1,6 +1,6 @@
 {
   "name": "brillouinzone-visualizer",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "description": "Javascript package of the Brillouin zone visualizer for the seekpath.",
   "keywords": [
     "seekpath",
@@ -19,21 +19,27 @@
     "lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
     "style/**/*.{css,.js,eot,gif,html,jpg,json,png,svg,woff2,ttf}"
   ],
-  "main": "lib/BZVisualizer.js",
+  "main": "lib/brillouinzone-visualizer.min.js",
   "style": "style/index.css",
   "repository": {
     "type": "git",
     "url": "https://github.com/materialscloud-org/brillouinzone-visualizer.git"
   },
   "scripts": {
+    "build": "grunt build",
     "prettier": "prettier --write \"**/*{.js,.jsx,.css,.json,.md}\""
   },
   "dependencies": {
-    "lodash": "^4.17.4"
+    "jquery": "3.6.0",
+    "lodash": "^4.17.4",
+    "three": "0.124.0"
   },
   "devDependencies": {
-    "three": "0.124.0",
-    "jquery": "3.6.0",
+    "grunt": "^1.4.0",
+    "grunt-contrib-clean": "^2.0.0",
+    "grunt-contrib-concat": "^1.0.1",
+    "grunt-contrib-jshint": "^3.0.0",
+    "grunt-contrib-uglify": "^5.0.1",
     "prettier": "^2.1.1",
     "rimraf": "^3.0.2"
   }
