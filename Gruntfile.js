@@ -32,7 +32,17 @@ module.exports = function (grunt) {
                     'lib/SVGRenderer.js',
                     'lib/BZVisualizer.js'],
                 dest: 'dist/brillouinzone-visualizer.js'
-            }
+            },
+            html: {
+                src: [
+                    'es6/three.min.js',
+                    'es6/OrbitControls.js',
+                    'es6/Projector.js',
+                    'es6/SVGRenderer.js',
+                    'es6/BZVisualizer.js'],
+                dest: 'dist/brillouinzone-visualizer-es6.js'
+            },
+
         },
 
         // minifies JS files
@@ -43,7 +53,8 @@ module.exports = function (grunt) {
             },
             dist: {
                 files: {
-                    'lib/brillouinzone-visualizer.min.js': ['dist/brillouinzone-visualizer.js']
+                    'lib/brillouinzone-visualizer.min.js': ['dist/brillouinzone-visualizer.js'],
+                    'es6/brillouinzone-visualizer-es6.min.js': ['dist/brillouinzone-visualizer-es6.js'],
                 }
             }
         },

@@ -789,6 +789,3 @@ var BZVisualizer = function (showAxes, showBVectors, showPathpoints, useSVGRende
     }
 }
 
-module.exports = {
-    BZVisualizer: BZVisualizer,
-}
