@@ -1,6 +1,6 @@
 {
   "name": "brillouinzone-visualizer",
-  "version": "0.1.0-beta.5",
+  "version": "0.1.0-beta.6",
   "description": "Javascript package of the Brillouin zone visualizer for the seekpath.",
   "keywords": [
     "seekpath",
@@ -17,6 +17,7 @@
   },
   "files": [
     "lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
+    "es6/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
     "style/**/*.{css,.js,eot,gif,html,jpg,json,png,svg,woff2,ttf}"
   ],
   "main": "lib/brillouinzone-visualizer.min.js",
