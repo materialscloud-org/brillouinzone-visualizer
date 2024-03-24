@@ -1,6 +1,8 @@
-# Brillouin Zone visualizer
+# Brillouin zone visualizer
 
-This repository contains a Javascript library to visualize the 1st brillouin zone (BZ) of crystal structures.
+[![NPM Version](https://img.shields.io/npm/v/brillouinzone-visualizer)](https://www.npmjs.com/package/brillouinzone-visualizer)
+
+This repository contains a Javascript library to visualize the 1st Brillouin zone (BZ) of crystal structures.
 
 The primary input to the Javascript widget is a `json` file generated from a crystal structure using [seekpath](https://github.com/giovannipizzi/seekpath).
 
