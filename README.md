@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-## Building the library
+### Building and using locally
 
 To build the local version of the code as a library that can be used in other javascript projects, use
 
@@ -34,6 +34,11 @@ npm install /path/to/library-x.y.z.tgz
 
 And the usage is similar to the demo page.
 
-## Publishing the library
+### Publishing a new version
 
-...
+To make a new version and publish to npm via GitHub Actions:
+
+```bash
+npm version <patch/minor/major>
+git push --follow-tags
+```
