@@ -151,7 +151,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
         // devicePixelRatio (that is e.g. 2 on Retina displays)
         renderer.setSize(
           canvas3d_width * devicePixelRatio,
-          canvas3d_height * devicePixelRatio
+          canvas3d_height * devicePixelRatio,
         );
         renderer.domElement.style.width = canvas3d_width + "px";
         renderer.domElement.style.height = canvas3d_height + "px";
@@ -168,13 +168,13 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     if (useSVGRenderer) {
       var textdiv = document.createElementNS(
         "http://www.w3.org/2000/svg",
-        "text"
+        "text",
       );
       textdiv.setAttribute("y", -100);
       textdiv.setAttribute("x", -100);
       textdiv.setAttribute(
         "font-family",
-        "'Helvetica Neue', Helvetica, Arial, sans-serif"
+        "'Helvetica Neue', Helvetica, Arial, sans-serif",
       );
       var devicePixelRatio = window.devicePixelRatio || 1;
       // 12px, but needs to be rescaled with the device pixel ratio
@@ -289,7 +289,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       45,
       canvas3d_width / canvas3d_height,
       0.01,
-      1000
+      1000,
     );
     // If I don't move it, I cannot pan
     camera.position.z = 3;
@@ -313,7 +313,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     // devicePixelRatio (that is e.g. 2 on Retina displays)
     renderer.setSize(
       canvas3d_width * devicePixelRatio,
-      canvas3d_height * devicePixelRatio
+      canvas3d_height * devicePixelRatio,
     );
     renderer.domElement.style.width = canvas3d_width + "px";
     renderer.domElement.style.height = canvas3d_height + "px";
@@ -338,8 +338,8 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       Math.max(
         Math.pow(b1[0], 2) + Math.pow(b1[1], 2) + Math.pow(b1[2], 2),
         Math.pow(b2[0], 2) + Math.pow(b2[1], 2) + Math.pow(b2[2], 2),
-        Math.pow(b3[0], 2) + Math.pow(b3[1], 2) + Math.pow(b3[2], 2)
-      )
+        Math.pow(b3[0], 2) + Math.pow(b3[1], 2) + Math.pow(b3[2], 2),
+      ),
     );
 
     var axeslength = max_b_length * 1.5;
@@ -419,7 +419,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
           axeslength,
           hex,
           axeslength / 10,
-          axeslength / 20
+          axeslength / 20,
         );
         //arrowX.line.material.linewidth = 2;
         scene.add(arrow);
@@ -475,13 +475,13 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       label = data[1];
 
       var b_length = Math.sqrt(
-        Math.pow(b[0], 2) + Math.pow(b[1], 2) + Math.pow(b[2], 2)
+        Math.pow(b[0], 2) + Math.pow(b[1], 2) + Math.pow(b[2], 2),
       );
 
       var dir = new THREE.Vector3(
         b[0] / b_length,
         b[1] / b_length,
-        b[2] / b_length
+        b[2] / b_length,
       );
 
       // Arrow
@@ -493,7 +493,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
         (length = b_length),
         (hex = hex),
         b_length / 10,
-        b_length / 20
+        b_length / 20,
       );
       //arrowX.line.material.linewidth = 2;
       scene.add(arrow);
@@ -521,7 +521,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     });
     brillouinzone.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute(verticesArray, 3)
+      new THREE.Float32BufferAttribute(verticesArray, 3),
     );
 
     var indicesArray = [];
