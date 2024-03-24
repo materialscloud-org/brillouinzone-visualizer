@@ -1,47 +1,27 @@
 {
   "name": "brillouinzone-visualizer",
-  "version": "0.1.0-beta.10",
-  "description": "Javascript package of the Brillouin zone visualizer for the seekpath.",
-  "keywords": [
-    "seekpath",
-    "Brillouin-Zone"
-  ],
+  "version": "0.2.0",
+  "description": "Brillouin zone visualizer.",
   "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
   "bugs": {
     "url": "https://github.com/materialscloud-org/brillouinzone-visualizer/issues"
   },
-  "license": "BSD-3-Clause",
-  "author": {
-    "name": "Dou Du and Giovanni Pizzi",
-    "email": "dou.du@epfl.ch"
-  },
+  "type": "module",
+  "main": "dist/main.js",
   "files": [
-    "lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
-    "es6/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
-    "style/**/*.{css,.js,eot,gif,html,jpg,json,png,svg,woff2,ttf}"
+    "dist"
   ],
-  "main": "lib/brillouinzone-visualizer.min.js",
-  "style": "style/index.css",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/materialscloud-org/brillouinzone-visualizer.git"
-  },
   "scripts": {
-    "build": "grunt build",
-    "prettier": "prettier --write \"**/*{.js,.jsx,.css,.json,.md}\""
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "jquery": "3.6.0",
-    "lodash": "^4.17.4",
-    "three": "0.124.0"
+    "three": "~0.162.0"
   },
   "devDependencies": {
-    "grunt": "^1.4.0",
-    "grunt-contrib-clean": "^2.0.0",
-    "grunt-contrib-concat": "^1.0.1",
-    "grunt-contrib-jshint": "^3.0.0",
-    "grunt-contrib-uglify": "^5.0.1",
-    "prettier": "^2.1.1",
-    "rimraf": "^3.0.2"
+    "prettier": "^3.2.5",
+    "vite": "^5.1.4",
+    "vite-plugin-lib-inject-css": "^2.0.0"
   }
 }
