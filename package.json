@@ -1,6 +1,6 @@
 {
   "name": "brillouinzone-visualizer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Javascript package to visualize the Brillouin zone of crystals.",
   "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
   "bugs": {
