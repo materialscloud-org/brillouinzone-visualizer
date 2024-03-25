@@ -41,8 +41,16 @@ export function createBZVisualizer(container, seekpathData, bzvParams) {
   container.appendChild(subContainer);
 
   let mainBZVisualizer = new BZVisualizer(canvasElem, infoElem, bzvParams);
-  mainBZVisualizer.loadBZ(seekpathData);
 
   window.addEventListener("resize", mainBZVisualizer.resizeRenderer);
+
+  // Trigger the data loading and THREE.js rendering when the browser
+  // requests a frame. This ensures that the containers are all placed
+  // in DOM. Otherwise, if the main container is not in DOM, the rendering
+  // doesn't work correctly (e.g. because the containers don't have a size yet)
+  requestAnimationFrame(() => {
+    mainBZVisualizer.loadBZ(seekpathData);
+  });
+
   return mainBZVisualizer;
 }
