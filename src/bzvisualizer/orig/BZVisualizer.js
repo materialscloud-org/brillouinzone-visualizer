@@ -78,6 +78,9 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
   // If you want to show the points of the explicit path
   var showPathpoints = params.showPathpoints ?? false;
 
+  // Disable the "double-click to toggle interaction" overlay
+  var disableInteractOverlay = params.disableInteractOverlay ?? false;
+
   // NOTE: The SVGRenderer (below) is not supported at the moment.
   // When this module was converted to ESM, it didn't seem trivial to migrate
   // the legacy SVGRenderer (as it was included via the <script> tags.)
@@ -597,10 +600,11 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       }
     };
 
-    // Default status: disabled
-    bz_switch_enable(false);
-
-    canvas3d.addEventListener("dblclick", bz_switch_enable);
+    if (!disableInteractOverlay) {
+      // Default status: disabled
+      bz_switch_enable(false);
+      canvas3d.addEventListener("dblclick", bz_switch_enable);
+    }
 
     var dbltapTimeout;
     var shortTap = false;

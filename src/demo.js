@@ -11,4 +11,5 @@ createBZVisualizer(document.getElementById("bzvis-2"), jsondata2, {
   showAxes: false,
   showBVectors: false,
   showPathpoints: true,
+  disableInteractOverlay: true,
 });
