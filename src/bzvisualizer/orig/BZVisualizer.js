@@ -103,9 +103,9 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
 
   var bz_material = new THREE.MeshBasicMaterial({
     color: 0xd53e4f,
-    opacity: 0.5,
+    opacity: 0.15,
     transparent: true,
-    //side: THREE.DoubleSide,
+    side: THREE.DoubleSide,
   });
 
   var edge_material = new THREE.LineBasicMaterial({
@@ -271,6 +271,26 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     if (canvasElem.id == "") return;
     if (infoElem == null) return;
 
+    // ----
+    // Access jsondata. Objects get drawn depending on what is available
+
+    // Reciprocial lattice: mandatory!
+    let b1 = jsondata["b1"];
+    let b2 = jsondata["b2"];
+    let b3 = jsondata["b3"];
+
+    // draws the BZ polyhedron
+    let faces_data = jsondata["faces_data"];
+
+    // draws special kpoint labels and the path
+    let special_kpoints = jsondata["kpoints"];
+    let kpoints_path = jsondata["path"];
+
+    // draws explicit discrete points on the path
+    let explicit_kpoints_abs = jsondata["explicit_kpoints_abs"];
+
+    // ----
+
     var devicePixelRatio = window.devicePixelRatio || 1;
 
     infoElem.innerHTML = "";
@@ -332,11 +352,6 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     controls.dampingFactor = 0.25;
     controls.enableZoom = true;
 
-    let special_points = jsondata["kpoints"];
-    let b1 = jsondata["b1"];
-    let b2 = jsondata["b2"];
-    let b3 = jsondata["b3"];
-
     let max_b_length = Math.sqrt(
       Math.max(
         Math.pow(b1[0], 2) + Math.pow(b1[1], 2) + Math.pow(b1[2], 2),
@@ -347,32 +362,6 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
 
     var axeslength = max_b_length * 1.5;
     camera.position.z = max_b_length * 3;
-
-    let data = jsondata["faces_data"];
-    for (var label in special_points) {
-      let pos = special_points[label];
-
-      let radius = 0.02 * max_b_length;
-
-      var sphere_geometry = new THREE.SphereGeometry(radius, 16, 16);
-      var sphere = new THREE.Mesh(sphere_geometry, point_material);
-      sphere.translateX(pos[0]);
-      sphere.translateY(pos[1]);
-      sphere.translateZ(pos[2]);
-      scene.add(sphere);
-
-      // Label
-      // prettify label
-      label = prettifyLabel(label, useSVGRenderer);
-      var textdiv = getText(label);
-      if (useSVGRenderer) {
-        renderer.domElement.appendChild(textdiv);
-        to_update.push([new THREE.Vector3(pos[0], pos[1], pos[2]), label]);
-      } else {
-        canvas3d.appendChild(textdiv);
-        to_update.push([new THREE.Vector3(pos[0], pos[1], pos[2]), textdiv]);
-      }
-    }
 
     if (showAxes) {
       // AXES
@@ -429,7 +418,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
 
         // Label
         var the_color = "#555555";
-        textdiv = getText(label, the_color);
+        var textdiv = getText(label, the_color);
         var pos = dir.clone();
         pos.sub(origin);
         pos.multiplyScalar(axeslength);
@@ -475,7 +464,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
 
     b_vectors.forEach(function (data) {
       var b = data[0];
-      label = data[1];
+      var label = data[1];
 
       var b_length = Math.sqrt(
         Math.pow(b[0], 2) + Math.pow(b[1], 2) + Math.pow(b[2], 2),
@@ -515,56 +504,86 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       }
     });
 
-    // Load BZ
-    var brillouinzone = new THREE.BufferGeometry();
+    // Draw BZ faces, if present
+    if (faces_data) {
+      var brillouinzone = new THREE.BufferGeometry();
 
-    var verticesArray = [];
-    data["triangles_vertices"].forEach(function (vertex) {
-      verticesArray.push(vertex[0], vertex[1], vertex[2]);
-    });
-    brillouinzone.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(verticesArray, 3),
-    );
+      var verticesArray = [];
+      faces_data["triangles_vertices"].forEach(function (vertex) {
+        verticesArray.push(vertex[0], vertex[1], vertex[2]);
+      });
+      brillouinzone.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(verticesArray, 3),
+      );
 
-    var indicesArray = [];
-    data["triangles"].forEach(function (triangle) {
-      indicesArray.push(triangle[0], triangle[1], triangle[2]);
-    });
-    brillouinzone.setIndex(indicesArray);
+      var indicesArray = [];
+      faces_data["triangles"].forEach(function (triangle) {
+        indicesArray.push(triangle[0], triangle[1], triangle[2]);
+      });
+      brillouinzone.setIndex(indicesArray);
 
-    var bz_mesh = new THREE.Mesh(brillouinzone, bz_material);
+      var bz_mesh = new THREE.Mesh(brillouinzone, bz_material);
 
-    // Create BZ edges
-    var edgesGeometry = new THREE.EdgesGeometry(bz_mesh.geometry);
-    var edges = new THREE.LineSegments(edgesGeometry, edge_material);
-    // Plot BZ and edges
-    scene.add(bz_mesh);
-    scene.add(edges);
+      // Create BZ edges
+      var edgesGeometry = new THREE.EdgesGeometry(bz_mesh.geometry);
+      var edges = new THREE.LineSegments(edgesGeometry, edge_material);
+      // Plot BZ and edges
+      scene.add(bz_mesh);
+      scene.add(edges);
+    }
 
-    // draw path
-    var path = jsondata["path"];
-    path.forEach(function (linespec) {
-      var label1 = linespec[0];
-      var label2 = linespec[1];
-      var p1 = special_points[label1];
-      var p2 = special_points[label2];
+    // Draw special kpoints and labels, if present
+    if (special_kpoints) {
+      for (var label in special_kpoints) {
+        let pos = special_kpoints[label];
 
-      var vertices = [];
-      vertices.push(new THREE.Vector3(p1[0], p1[1], p1[2]));
-      vertices.push(new THREE.Vector3(p2[0], p2[1], p2[2]));
+        let radius = 0.02 * max_b_length;
 
-      var geometry = new THREE.BufferGeometry().setFromPoints(vertices);
-      var line = new THREE.Line(geometry, line_material);
-      line.material.linewidth = 4;
-      scene.add(line);
-    });
+        var sphere_geometry = new THREE.SphereGeometry(radius, 16, 16);
+        var sphere = new THREE.Mesh(sphere_geometry, point_material);
+        sphere.translateX(pos[0]);
+        sphere.translateY(pos[1]);
+        sphere.translateZ(pos[2]);
+        scene.add(sphere);
 
-    if (showPathpoints) {
-      var kpoints_abs = jsondata["explicit_kpoints_abs"];
-      for (var idx in kpoints_abs) {
-        var pos = kpoints_abs[idx];
-        var radius = 0.005 * max_b_length;
+        // Label
+        // prettify label
+        label = prettifyLabel(label, useSVGRenderer);
+        var textdiv = getText(label);
+        if (useSVGRenderer) {
+          renderer.domElement.appendChild(textdiv);
+          to_update.push([new THREE.Vector3(pos[0], pos[1], pos[2]), label]);
+        } else {
+          canvas3d.appendChild(textdiv);
+          to_update.push([new THREE.Vector3(pos[0], pos[1], pos[2]), textdiv]);
+        }
+      }
+    }
+
+    // Draw kpoints path, if present
+    if (kpoints_path && special_kpoints) {
+      kpoints_path.forEach(function (linespec) {
+        var label1 = linespec[0];
+        var label2 = linespec[1];
+        var p1 = special_kpoints[label1];
+        var p2 = special_kpoints[label2];
+
+        var vertices = [];
+        vertices.push(new THREE.Vector3(p1[0], p1[1], p1[2]));
+        vertices.push(new THREE.Vector3(p2[0], p2[1], p2[2]));
+
+        var geometry = new THREE.BufferGeometry().setFromPoints(vertices);
+        var line = new THREE.Line(geometry, line_material);
+        line.material.linewidth = 4;
+        scene.add(line);
+      });
+    }
+
+    if (showPathpoints && explicit_kpoints_abs) {
+      for (var idx in explicit_kpoints_abs) {
+        var pos = explicit_kpoints_abs[idx];
+        var radius = 0.01 * max_b_length;
 
         var sphere_geometry = new THREE.SphereGeometry(radius, 16, 16);
         var sphere = new THREE.Mesh(sphere_geometry, pointpath_material);
