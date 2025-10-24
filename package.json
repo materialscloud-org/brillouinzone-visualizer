@@ -17,11 +17,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "~0.162.0"
+    "three": "~0.180.0"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
-    "vite": "^5.1.4",
+    "vite": "^7.1.12",
     "vite-plugin-lib-inject-css": "^2.0.0"
   }
 }
