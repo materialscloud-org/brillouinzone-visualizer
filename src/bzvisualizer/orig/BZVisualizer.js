@@ -81,6 +81,9 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
   // Disable the "double-click to toggle interaction" overlay
   var disableInteractOverlay = params.disableInteractOverlay ?? false;
 
+  // pass a specific camera position - useful if rebuilding the renderer from state.
+  var cameraState = params.cameraState ?? null;
+
   // NOTE: The SVGRenderer (below) is not supported at the moment.
   // When this module was converted to ESM, it didn't seem trivial to migrate
   // the legacy SVGRenderer (as it was included via the <script> tags.)
@@ -163,6 +166,16 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
         render();
       }
     }
+  };
+
+  // expose the camera position
+  // useful for rebuilding the vis from a prior state.
+  this.getCameraState = function () {
+    if (!camera || !this.controls) return null;
+    return {
+      position: camera.position.clone(),
+      target: this.controls.target.clone(),
+    };
   };
 
   var getText = function (label, color) {
@@ -346,6 +359,16 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     canvas3d.appendChild(renderer.domElement);
 
     let controls = new OrbitControls(camera, renderer.domElement);
+    this.controls = controls; // expose for external access
+    this.camera = camera; // expose for external access
+
+    // update camera state if its passed to the component.
+    if (cameraState) {
+      camera.position.copy(cameraState.position);
+      controls.target.copy(cameraState.target);
+      controls.update();
+    }
+
     controls.addEventListener("change", render); // add this only if there is no animation loop (requestAnimationFrame)
     // needed because we want to redraw only on change
     controls.enableDamping = true;

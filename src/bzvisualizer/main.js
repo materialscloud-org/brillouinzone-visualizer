@@ -21,8 +21,12 @@ function generateRandomString(length) {
  * @param {*} bzvParams - data object of parameters passed to BZVisualizer
  * @returns {*} The BZVisualizer object (used e.g. in the jupyter widget)
  */
-export function createBZVisualizer(container, seekpathData, bzvParams) {
-  // make a sub-container that has the correct styling
+export function createBZVisualizer(
+  container,
+  seekpathData,
+  bzvParams,
+  onReady,
+) {
   let subContainer = document.createElement("div");
   subContainer.className = "bz-main-container";
 
@@ -50,6 +54,9 @@ export function createBZVisualizer(container, seekpathData, bzvParams) {
   // doesn't work correctly (e.g. because the containers don't have a size yet)
   requestAnimationFrame(() => {
     mainBZVisualizer.loadBZ(seekpathData);
+
+    // call the ready callback after loadBZ
+    if (onReady) onReady(mainBZVisualizer);
   });
 
   return mainBZVisualizer;
