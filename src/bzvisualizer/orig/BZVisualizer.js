@@ -72,6 +72,7 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
   if (params == null) {
     params = {};
   }
+
   // Parse params. If undefined/null, use reasonable defaults.
   var showAxes = params.showAxes ?? true;
   var showBVectors = params.showBVectors ?? true;
@@ -384,7 +385,10 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
     );
 
     var axeslength = max_b_length * 1.5;
-    camera.position.z = max_b_length * 3;
+    // if no camera position is passed we try to guess a good one based on blen.
+    if (!cameraState) {
+      camera.position.z = max_b_length * 3;
+    }
 
     if (showAxes) {
       // AXES
@@ -505,8 +509,8 @@ export var BZVisualizer = function (canvasElem, infoElem, params) {
       var arrow = new THREE.ArrowHelper(
         dir,
         origin,
-        (length = b_length),
-        (hex = hex),
+        b_length,
+        hex,
         b_length / 10,
         b_length / 20,
       );

@@ -31,8 +31,8 @@ See the `src/demo.js` for more details.
 A demo page is included for development and to demonstrate the usage of the library. Start it by
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ### Building and using locally
@@ -40,14 +40,14 @@ npm run dev
 To build the local version of the code as a library that can be used in other javascript projects, use
 
 ```bash
-npm run build
-npm pack
+pnpm run build
+pnpm pack
 ```
 
 This will create a `.tgz` file that can then be installed by the external application via
 
 ```bash
-npm install /path/to/library-x.y.z.tgz
+pnpm install /path/to/library-x.y.z.tgz
 ```
 
 And the usage is similar to the demo page.
@@ -57,6 +57,6 @@ And the usage is similar to the demo page.
 To make a new version and publish to npm via GitHub Actions:
 
 ```bash
-npm version major/minor/patch
+pnpm version major/minor/patch
 git push --follow-tags
 ```
