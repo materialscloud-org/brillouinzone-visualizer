@@ -25,7 +25,14 @@ const el = document.getElementById("viz")!; // needs a height
 const vis = new BZVisualizer(el, seekpathJson);
 
 // k-points: explicit (fractional or Cartesian) or an AiiDA-style mesh
-new BZVisualizer(el, { b1, b2, b3, kpoints, mesh: [6, 6, 6], offset: [0.5, 0.5, 0.5] });
+new BZVisualizer(el, {
+  b1,
+  b2,
+  b3,
+  kpoints,
+  mesh: [6, 6, 6],
+  offset: [0.5, 0.5, 0.5],
+});
 
 // Fermi surfaces from a .bxsf file, with or without a k-path
 new BZVisualizer(el, seekpathJson, { fermi: parseBXSF(bxsfText) });
@@ -37,10 +44,20 @@ vis.dispose(); // when done
 
 ```tsx
 import { useEffect, useRef } from "react";
-import { BZVisualizer, type BZVisualizerOptions, type SeekpathJSON } from "bz-visualizer";
+import {
+  BZVisualizer,
+  type BZVisualizerOptions,
+  type SeekpathJSON,
+} from "bz-visualizer";
 import "bz-visualizer/style.css";
 
-export function BZVis({ data, options }: { data: SeekpathJSON; options?: BZVisualizerOptions }) {
+export function BZVis({
+  data,
+  options,
+}: {
+  data: SeekpathJSON;
+  options?: BZVisualizerOptions;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

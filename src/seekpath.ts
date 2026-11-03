@@ -39,14 +39,18 @@ export interface KPathData {
 const vec3 = (p: ArrayLike<number>): Vec3 => [p[0], p[1], p[2]];
 
 /** AiiDA mesh + offset (in grid-spacing units) as a matsci-parse KGrid. */
-export function kgridFromMesh(mesh: number[], offset: number[] = [0, 0, 0]): KGrid {
+export function kgridFromMesh(
+  mesh: number[],
+  offset: number[] = [0, 0, 0],
+): KGrid {
   const [n1, n2, n3] = mesh;
   const [o1, o2, o3] = offset;
   return {
     kind: "grid",
     mesh: [n1, n2, n3],
     origin: [o1 / n1, o2 / n2, o3 / n3],
-    scheme: o1 === 0 && o2 === 0 && o3 === 0 ? "gamma-centered" : "monkhorst-pack",
+    scheme:
+      o1 === 0 && o2 === 0 && o3 === 0 ? "gamma-centered" : "monkhorst-pack",
   };
 }
 
@@ -65,7 +69,9 @@ export function fromSeekpathJSON(json: SeekpathJSON): KPathData {
   const labelled = json.kpoints_rel
     ? Object.entries(json.kpoints_rel).map(([k, p]) => [k, vec3(p)] as const)
     : json.kpoints
-      ? Object.entries(json.kpoints).map(([k, p]) => [k, fractional(p)] as const)
+      ? Object.entries(json.kpoints).map(
+          ([k, p]) => [k, fractional(p)] as const,
+        )
       : undefined;
   const kpath: KPath | undefined = labelled?.length
     ? {
@@ -75,7 +81,9 @@ export function fromSeekpathJSON(json: SeekpathJSON): KPathData {
       }
     : undefined;
 
-  const offset = Array.isArray(json.offset?.[0]) ? (json.offset[0] as number[]) : (json.offset as number[] | undefined);
+  const offset = Array.isArray(json.offset?.[0])
+    ? (json.offset[0] as number[])
+    : (json.offset as number[] | undefined);
   const grid = json.mesh ? kgridFromMesh(json.mesh, offset) : undefined;
   const points =
     json.explicit_kpoints_rel?.map(vec3) ??

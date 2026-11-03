@@ -18,8 +18,16 @@ import type { BrillouinZone, FermiSurfaceData, VolumetricData } from "../types";
 
 // plotly default palette
 const PALETTE = [
-  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#1f77b4",
+  "#ff7f0e",
+  "#2ca02c",
+  "#d62728",
+  "#9467bd",
+  "#8c564b",
+  "#e377c2",
+  "#7f7f7f",
+  "#bcbd22",
+  "#17becf",
 ];
 
 export interface FermiSurfaceOptions {
@@ -63,21 +71,34 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData) {
 
   // Field point p ↔ local (p - size/2) / (size/2) ↔ k = origin + Σ (start + p) / n · b
   const half = size / 2;
-  const [c1, c2, c3] = [b1, b2, b3].map((b, a) => b.clone().multiplyScalar(half / n[a]));
+  const [c1, c2, c3] = [b1, b2, b3].map((b, a) =>
+    b.clone().multiplyScalar(half / n[a]),
+  );
   const offset = origin.clone();
-  [b1, b2, b3].forEach((b, a) => offset.addScaledVector(b, (start[a] + half) / n[a]));
+  [b1, b2, b3].forEach((b, a) =>
+    offset.addScaledVector(b, (start[a] + half) / n[a]),
+  );
   const matrix = new Matrix4().makeBasis(c1, c2, c3).setPosition(offset);
 
   const fill = (band: VolumetricData): Float32Array => {
     const field = new Float32Array(size * size * size);
     const mod = (i: number, m: number) => ((i % m) + m) % m;
-    const xs = Int32Array.from({ length: size }, (_, p) => mod(start[0] + p, W));
-    const ys = Int32Array.from({ length: size }, (_, p) => mod(start[1] + p, H) * W);
-    const zs = Int32Array.from({ length: size }, (_, p) => mod(start[2] + p, D) * W * H);
+    const xs = Int32Array.from({ length: size }, (_, p) =>
+      mod(start[0] + p, W),
+    );
+    const ys = Int32Array.from(
+      { length: size },
+      (_, p) => mod(start[1] + p, H) * W,
+    );
+    const zs = Int32Array.from(
+      { length: size },
+      (_, p) => mod(start[2] + p, D) * W * H,
+    );
     let q = 0;
     for (let z = 0; z < size; z++)
       for (let y = 0; y < size; y++)
-        for (let x = 0; x < size; x++) field[q++] = band.data[zs[z] + ys[y] + xs[x]];
+        for (let x = 0; x < size; x++)
+          field[q++] = band.data[zs[z] + ys[y] + xs[x]];
     return field;
   };
 
@@ -105,7 +126,12 @@ export class FermiSurface extends Group {
   constructor(
     readonly data: FermiSurfaceData,
     readonly bz: BrillouinZone,
-    { colors = PALETTE, opacity = 1, clip = true, cachePrecision = 3 }: FermiSurfaceOptions = {},
+    {
+      colors = PALETTE,
+      opacity = 1,
+      clip = true,
+      cachePrecision = 3,
+    }: FermiSurfaceOptions = {},
   ) {
     super();
     this.name = "fermiSurface";
@@ -124,9 +150,17 @@ export class FermiSurface extends Group {
 
     const { size, matrix } = this.sampling;
     this.maxPolyCount = 16 * size * size;
-    this.mc = new MarchingCubes(size, new MeshStandardMaterial(), false, false, this.maxPolyCount);
+    this.mc = new MarchingCubes(
+      size,
+      new MeshStandardMaterial(),
+      false,
+      false,
+      this.maxPolyCount,
+    );
 
-    this.clippingPlanes = bz.planes.map((p) => new Plane(new Vector3(...p.normal).negate(), p.offset));
+    this.clippingPlanes = bz.planes.map(
+      (p) => new Plane(new Vector3(...p.normal).negate(), p.offset),
+    );
 
     this.meshes = data.bands.map((band, i) => {
       const mesh = new Mesh(
@@ -176,7 +210,9 @@ export class FermiSurface extends Group {
     const [min, max] = this.ranges[bandIndex];
     if (E < min || E > max) return geometry;
 
-    const field = (this.fields[bandIndex] ??= this.sampling.fill(this.data.bands[bandIndex]));
+    const field = (this.fields[bandIndex] ??= this.sampling.fill(
+      this.data.bands[bandIndex],
+    ));
     for (;;) {
       const mc = this.mc;
       mc.field = field;
@@ -186,18 +222,31 @@ export class FermiSurface extends Group {
       if (mc.count / 3 <= this.maxPolyCount) break;
       // The fixed-size output buffers overflowed: grow and retry
       this.maxPolyCount *= 2;
-      this.mc = new MarchingCubes(this.sampling.size, mc.material as MeshStandardMaterial, false, false, this.maxPolyCount);
+      this.mc = new MarchingCubes(
+        this.sampling.size,
+        mc.material as MeshStandardMaterial,
+        false,
+        false,
+        this.maxPolyCount,
+      );
     }
 
     const n = this.mc.count * 3;
-    geometry.setAttribute("position", new BufferAttribute(this.mc.positionArray.slice(0, n), 3));
-    geometry.setAttribute("normal", new BufferAttribute(this.mc.normalArray.slice(0, n), 3));
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(this.mc.positionArray.slice(0, n), 3),
+    );
+    geometry.setAttribute(
+      "normal",
+      new BufferAttribute(this.mc.normalArray.slice(0, n), 3),
+    );
     geometry.computeBoundingSphere();
     return geometry;
   }
 
   dispose() {
-    for (const geometries of this.cache.values()) geometries.forEach((g) => g.dispose());
+    for (const geometries of this.cache.values())
+      geometries.forEach((g) => g.dispose());
     this.cache.clear();
     this.meshes.forEach((m) => m.material.dispose());
     this.mc.geometry.dispose();

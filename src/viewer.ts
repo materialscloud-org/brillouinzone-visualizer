@@ -86,15 +86,23 @@ export class Viewer {
     this.scene.add(this.camera, this.content);
 
     this.camera.position.set(1, 1, 1);
-    this.controls = new TrackballControls(this.camera, this.renderer.domElement);
-    Object.assign(this.controls, { staticMoving: true, rotateSpeed: 3, zoomSpeed: 1.5 });
+    this.controls = new TrackballControls(
+      this.camera,
+      this.renderer.domElement,
+    );
+    Object.assign(this.controls, {
+      staticMoving: true,
+      rotateSpeed: 3,
+      zoomSpeed: 1.5,
+    });
     // Trackball needs update() every frame, so animate only while dragging
     this.controls.addEventListener("start", () => {
       // For orthographic cameras TrackballControls pans by (screen fraction)
       // × (world units per pixel) × (camera distance) × panSpeed. This
       // panSpeed cancels the extra factors so the scene follows the mouse.
       this.controls.panSpeed =
-        this.renderer.domElement.clientWidth / this.camera.position.distanceTo(this.controls.target);
+        this.renderer.domElement.clientWidth /
+        this.camera.position.distanceTo(this.controls.target);
       this.interacting = true;
       this.animate();
     });
@@ -149,7 +157,9 @@ export class Viewer {
     this.interactive = on;
     this.controls.enabled = on;
     this.renderer.domElement.style.pointerEvents = on ? "" : "none";
-    this.container.dispatchEvent(new CustomEvent("interactivechange", { detail: on }));
+    this.container.dispatchEvent(
+      new CustomEvent("interactivechange", { detail: on }),
+    );
   }
 
   get isInteractive() {
@@ -183,7 +193,8 @@ export class Viewer {
       if (!this.interactive) this.setInteractive(true);
     };
     const onDocumentDown = (e: MouseEvent) => {
-      if (this.interactive && !this.container.contains(e.target as Node)) this.setInteractive(false);
+      if (this.interactive && !this.container.contains(e.target as Node))
+        this.setInteractive(false);
     };
     this.container.addEventListener("mousedown", onContainerDown);
     document.addEventListener("mousedown", onDocumentDown);

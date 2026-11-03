@@ -19,7 +19,11 @@ export function parseBXSF(text: string): FermiSurfaceData {
   if (!title) throw new Error("BXSF: no BANDGRID_3D block found");
   const afterTitle = title.index + title[0].length;
   const firstBand = text.indexOf("BAND:", afterTitle);
-  const header = text.slice(afterTitle, firstBand).trim().split(/\s+/).map(Number);
+  const header = text
+    .slice(afterTitle, firstBand)
+    .trim()
+    .split(/\s+/)
+    .map(Number);
   const [numBands, n1, n2, n3] = header;
   const origin = header.slice(4, 7) as [number, number, number];
   const reciprocalBasis: Matrix = {

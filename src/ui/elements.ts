@@ -18,7 +18,11 @@ export function button(text: string, onClick: () => void) {
   return b;
 }
 
-export function checkbox(text: string, checked: boolean, onChange: (checked: boolean) => void) {
+export function checkbox(
+  text: string,
+  checked: boolean,
+  onChange: (checked: boolean) => void,
+) {
   const input = el("input");
   input.type = "checkbox";
   input.checked = checked;
@@ -27,17 +31,29 @@ export function checkbox(text: string, checked: boolean, onChange: (checked: boo
 }
 
 /** A checkbox drawn as a sliding switch. */
-export function toggleSwitch(text: string, checked: boolean, onChange: (checked: boolean) => void) {
+export function toggleSwitch(
+  text: string,
+  checked: boolean,
+  onChange: (checked: boolean) => void,
+) {
   const input = el("input");
   input.type = "checkbox";
   input.setAttribute("role", "switch");
   input.checked = checked;
   input.addEventListener("change", () => onChange(input.checked));
-  return el("label", "bzv-check bzv-switch", [input, el("span", "bzv-slider"), text]);
+  return el("label", "bzv-check bzv-switch", [
+    input,
+    el("span", "bzv-slider"),
+    text,
+  ]);
 }
 
 /** A colour picker; `onInput` fires while dragging. */
-export function colorInput(value: string, title: string, onInput: (color: string) => void) {
+export function colorInput(
+  value: string,
+  title: string,
+  onInput: (color: string) => void,
+) {
   const input = el("input", "bzv-color");
   input.type = "color";
   input.value = value;
@@ -47,9 +63,22 @@ export function colorInput(value: string, title: string, onInput: (color: string
 }
 
 /** A small range input. */
-export function rangeInput(min: number, max: number, step: number, value: number, title: string, onInput: (value: number) => void) {
+export function rangeInput(
+  min: number,
+  max: number,
+  step: number,
+  value: number,
+  title: string,
+  onInput: (value: number) => void,
+) {
   const input = el("input");
-  Object.assign(input, { type: "range", min: String(min), max: String(max), step: String(step), title });
+  Object.assign(input, {
+    type: "range",
+    min: String(min),
+    max: String(max),
+    step: String(step),
+    title,
+  });
   input.value = String(value);
   input.addEventListener("input", () => onInput(Number(input.value)));
   return input;

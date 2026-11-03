@@ -24,7 +24,11 @@ import { foldIntoBZ, toCartesian } from "./kpoints";
 import type { BrillouinZone, KPath, Matrix, Vec3 } from "./types";
 
 /** An HTML label anchored at a 3D position. */
-export function label(html: string, position: Vector3, color = "#333"): CSS2DObject {
+export function label(
+  html: string,
+  position: Vector3,
+  color = "#333",
+): CSS2DObject {
   const div = document.createElement("div");
   div.innerHTML = html;
   div.className = "bzv-label";
@@ -37,9 +41,18 @@ export function label(html: string, position: Vector3, color = "#333"): CSS2DObj
 }
 
 /** Thick line segments (pixel width), from a flat xyz pair list. */
-export function fatLines(positions: ArrayLike<number>, color: ColorRepresentation, width: number) {
-  const geometry = new LineSegmentsGeometry().setPositions(Array.from(positions));
-  return new LineSegments2(geometry, new LineMaterial({ color, linewidth: width }));
+export function fatLines(
+  positions: ArrayLike<number>,
+  color: ColorRepresentation,
+  width: number,
+) {
+  const geometry = new LineSegmentsGeometry().setPositions(
+    Array.from(positions),
+  );
+  return new LineSegments2(
+    geometry,
+    new LineMaterial({ color, linewidth: width }),
+  );
 }
 
 const GREEK: Record<string, string> = {
@@ -66,7 +79,12 @@ export interface BZObjectOptions {
 /** Transparent zone hull with its edges drawn on top. */
 export function brillouinZoneObject(
   bz: BrillouinZone,
-  { color = 0x9ab8d8, opacity = 0.18, edgeColor = 0x2b3a4a, edgeWidth = 1.5 }: BZObjectOptions = {},
+  {
+    color = 0x9ab8d8,
+    opacity = 0.18,
+    edgeColor = 0x2b3a4a,
+    edgeWidth = 1.5,
+  }: BZObjectOptions = {},
 ): Group {
   const points: Vector3[] = [];
   for (let i = 0; i < bz.vertices.length; i += 3)
@@ -84,7 +102,11 @@ export function brillouinZoneObject(
     }),
   );
   fill.name = "fill";
-  const edges = fatLines(new EdgesGeometry(hull).getAttribute("position").array, edgeColor, edgeWidth);
+  const edges = fatLines(
+    new EdgesGeometry(hull).getAttribute("position").array,
+    edgeColor,
+    edgeWidth,
+  );
   edges.name = "edges";
 
   const group = new Group();
@@ -103,7 +125,11 @@ export function reciprocalVectorsObject(
   reciprocalBasis: Matrix,
   {
     colors = [0x2ca02c, 0x1f77b4, 0xd62728],
-    labels = ["<b>b</b><sub>1</sub>", "<b>b</b><sub>2</sub>", "<b>b</b><sub>3</sub>"],
+    labels = [
+      "<b>b</b><sub>1</sub>",
+      "<b>b</b><sub>2</sub>",
+      "<b>b</b><sub>3</sub>",
+    ],
   }: VectorsObjectOptions = {},
 ): Group {
   const group = new Group();
@@ -122,14 +148,22 @@ export function reciprocalVectorsObject(
     );
     if (labels)
       group.add(
-        label(labels[i], b.clone().multiplyScalar(1.05), `#${new Color(colors[i % colors.length]).getHexString()}`),
+        label(
+          labels[i],
+          b.clone().multiplyScalar(1.05),
+          `#${new Color(colors[i % colors.length]).getHexString()}`,
+        ),
       );
   });
   return group;
 }
 
 /** Shaded spheres at `positions`, drawn as one instanced mesh. */
-export function sphereInstances(positions: Vector3[], radius: number, color: ColorRepresentation) {
+export function sphereInstances(
+  positions: Vector3[],
+  radius: number,
+  color: ColorRepresentation,
+) {
   const mesh = new InstancedMesh(
     new SphereGeometry(radius, 16, 12),
     new MeshStandardMaterial({ color, roughness: 0.4 }),
@@ -181,7 +215,13 @@ export function kpathObject(
   }
 
   const named = Object.entries(kpath.points);
-  group.add(sphereInstances(named.map(([, p]) => cartesian(p)), pointRadius * scale, pointColor));
+  group.add(
+    sphereInstances(
+      named.map(([, p]) => cartesian(p)),
+      pointRadius * scale,
+      pointColor,
+    ),
+  );
   if (labels)
     for (const [name, p] of named)
       group.add(label(prettifyLabel(name), cartesian(p), "#7a2e05"));
@@ -207,12 +247,21 @@ export function kpointsObject(
 ): Group {
   const scale = longestVector(reciprocalBasis);
   // Shrink the spheres for dense sets: ~ a quarter of the typical spacing
-  const cellVolume = Math.abs(basisVectors(reciprocalBasis)[0]
-    .dot(basisVectors(reciprocalBasis)[1].clone().cross(basisVectors(reciprocalBasis)[2])));
+  const cellVolume = Math.abs(
+    basisVectors(reciprocalBasis)[0].dot(
+      basisVectors(reciprocalBasis)[1]
+        .clone()
+        .cross(basisVectors(reciprocalBasis)[2]),
+    ),
+  );
   const spacing = Math.cbrt(cellVolume / Math.max(points.length, 1));
   const r = radius ?? Math.min(0.009 * scale, 0.22 * spacing);
 
-  const cell = sphereInstances(points.map((p) => toCartesian(p, reciprocalBasis)), r, color);
+  const cell = sphereInstances(
+    points.map((p) => toCartesian(p, reciprocalBasis)),
+    r,
+    color,
+  );
   cell.name = "cell";
   const folded = sphereInstances(foldIntoBZ(points, reciprocalBasis), r, color);
   folded.name = "folded";
@@ -225,7 +274,10 @@ export function kpointsObject(
 }
 
 /** Cartesian x, y, z axes. */
-export function axesObject(length: number, color: ColorRepresentation = 0x555555): Group {
+export function axesObject(
+  length: number,
+  color: ColorRepresentation = 0x555555,
+): Group {
   const group = new Group();
   group.name = "axes";
   const dirs: [Vector3, string][] = [
@@ -234,8 +286,23 @@ export function axesObject(length: number, color: ColorRepresentation = 0x555555
     [new Vector3(0, 0, 1), "z"],
   ];
   for (const [dir, name] of dirs) {
-    group.add(new ArrowHelper(dir, new Vector3(), length, color, length / 10, length / 20));
-    group.add(label(`<i>${name}</i>`, dir.clone().multiplyScalar(length * 1.05), "#555"));
+    group.add(
+      new ArrowHelper(
+        dir,
+        new Vector3(),
+        length,
+        color,
+        length / 10,
+        length / 20,
+      ),
+    );
+    group.add(
+      label(
+        `<i>${name}</i>`,
+        dir.clone().multiplyScalar(length * 1.05),
+        "#555",
+      ),
+    );
   }
   return group;
 }

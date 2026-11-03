@@ -1,5 +1,10 @@
 import "../src/style.css";
-import { BZVisualizer, parseBXSF, type BZVisualizerOptions, type SeekpathJSON } from "../src";
+import {
+  BZVisualizer,
+  parseBXSF,
+  type BZVisualizerOptions,
+  type SeekpathJSON,
+} from "../src";
 
 import mc3d10 from "./data/mc3d-10.json";
 import mc3d10016 from "./data/mc3d-10016.json";
@@ -12,7 +17,8 @@ interface Example {
   load: () => Promise<[SeekpathJSON | undefined, BZVisualizerOptions?]>;
 }
 
-const fetchBXSF = async (url: string) => parseBXSF(await fetch(url).then((r) => r.text()));
+const fetchBXSF = async (url: string) =>
+  parseBXSF(await fetch(url).then((r) => r.text()));
 
 const EXAMPLES: Example[] = [
   {
@@ -45,13 +51,15 @@ const EXAMPLES: Example[] = [
       const fermi = await fetchBXSF(file2Url);
       // No seekpath output exists for this file; its fcc cell matches
       // mc3d-10016's setting, so that fractional path is reused on its lattice.
-      const [b1, b2, b3] = [0, 3, 6].map((i) => [...fermi.reciprocalBasis.data.slice(i, i + 3)]);
+      const [b1, b2, b3] = [0, 3, 6].map((i) => [
+        ...fermi.reciprocalBasis.data.slice(i, i + 3),
+      ]);
       return [{ ...mc3d10016, b1, b2, b3 }, { fermi }];
     },
   },
   {
     label: "example.bxsf: Fermi surface (hexagonal)",
-    note: "No band crosses E_F here (it sits at the bottom of band 31), so this starts at E_F + 0.3 eV.",
+    note: "Band 31 only just reaches E_F (by 0.3 meV), so this starts at E_F + 0.3 eV.",
     load: async () => {
       const fermi = await fetchBXSF(hexUrl);
       return [undefined, { fermi, energy: fermi.fermiEnergy + 0.3 }];

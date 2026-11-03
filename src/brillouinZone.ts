@@ -32,11 +32,16 @@ export function getBrillouinZone(
     for (let j = -n; j <= n; j++) {
       for (let k = -n; k <= n; k++) {
         if (i === 0 && j === 0 && k === 0) continue;
-        const g = b1.clone().multiplyScalar(i)
+        const g = b1
+          .clone()
+          .multiplyScalar(i)
           .addScaledVector(b2, j)
           .addScaledVector(b3, k);
         const dir = g.clone().normalize();
-        const key = dir.toArray().map((x) => Math.round(x * 1e6)).join();
+        const key = dir
+          .toArray()
+          .map((x) => Math.round(x * 1e6))
+          .join();
         const best = shortest.get(key);
         if (!best || g.lengthSq() < best.lengthSq()) shortest.set(key, g);
       }
@@ -58,11 +63,20 @@ export function getBrillouinZone(
     for (let j = i + 1; j < candidates.length; j++) {
       for (let k = j + 1; k < candidates.length; k++) {
         const [p, q, r] = [candidates[i], candidates[j], candidates[k]];
-        m.set(...p.normal.toArray(), ...q.normal.toArray(), ...r.normal.toArray());
+        m.set(
+          ...p.normal.toArray(),
+          ...q.normal.toArray(),
+          ...r.normal.toArray(),
+        );
         if (Math.abs(m.determinant()) < 1e-9) continue;
-        const v = new Vector3(p.offset, q.offset, r.offset).applyMatrix3(m.invert());
+        const v = new Vector3(p.offset, q.offset, r.offset).applyMatrix3(
+          m.invert(),
+        );
         if (!inside(v)) continue;
-        const key = v.toArray().map((x) => Math.round(x / tol)).join();
+        const key = v
+          .toArray()
+          .map((x) => Math.round(x / tol))
+          .join();
         if (!corners.has(key)) corners.set(key, v);
       }
     }
