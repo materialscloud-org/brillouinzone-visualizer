@@ -1,0 +1,45 @@
+name: Publish the Javascript lib on NPM
+
+on:
+  push:
+    tags:
+      - "js-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish_npm:
+    runs-on: ubuntu-latest
+    if: github.repository == 'materialscloud-org/fermisurface-visualiser'
+
+    defaults:
+      run:
+        working-directory: fermisurface-vis
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish to npm
+        run: npm publish
