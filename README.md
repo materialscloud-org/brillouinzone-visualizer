@@ -6,15 +6,38 @@ combines the two earlier projects and keeps their history:
 - `legacy/brillouinzone-visualizer`: materialscloud-org/brillouinzone-visualizer
 - `legacy/fermisurface-visualiser`: materialscloud-org/fermisurface-visualiser
 
+## Usage
+
+```ts
+import { createBZVisualizer, parseBXSF } from "bz-visualizer";
+
+// Brillouin zone + k-path
+createBZVisualizer(el, seekpathJson);
+
+// ... plus Fermi surfaces (the Fermi code is fetched only in this case)
+createBZVisualizer(el, seekpathJson, { fermi: parseBXSF(bxsfText) });
+```
+
+The widget is laid out like mc-react-structure-visualizer: the 3D window
+ignores the mouse until clicked ("Click to interact"), so the page scrolls
+normally over it, and a control box below holds:
+
+- camera buttons (x, y, z, reset);
+- toggles for the zone, b vectors, axes, k-path, path points and labels;
+- with Fermi data: an E − E_F slider, clipping to the zone, and band chips.
+
+Rotation is free (three's TrackballControls), as in 3Dmol.
+
 ## Entry points
 
 | import | contents | three addons used |
 |---|---|---|
-| `bz-visualizer` | `Viewer`, `getBrillouinZone`, BZ / vectors / k-path objects, `createBZVisualizer` | OrbitControls, ConvexGeometry, CSS2DRenderer |
-| `bz-visualizer/fermi` | `parseBXSF`, `FermiSurface` | MarchingCubes |
+| `bz-visualizer` | `createBZVisualizer` / `BZVisualizer`, `parseBXSF`, and the building blocks (`Viewer`, `getBrillouinZone`, BZ / vectors / k-path objects) | TrackballControls, ConvexGeometry, Line2, CSS2DRenderer; MarchingCubes in a lazily loaded chunk |
+| `bz-visualizer/fermi` | `FermiSurface`, for custom scenes | MarchingCubes |
 
-The package is marked `sideEffects: false`, so code that only draws a
-Brillouin zone does not bundle the Fermi-surface code.
+The package is marked `sideEffects: false`, and the component loads the
+Fermi-surface code with a dynamic import, so a page that only draws a
+Brillouin zone never downloads it.
 
 ## Data model
 

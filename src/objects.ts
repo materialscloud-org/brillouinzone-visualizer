@@ -1,21 +1,22 @@
 import {
   ArrowHelper,
-  BufferGeometry,
   Color,
   type ColorRepresentation,
   DoubleSide,
   EdgesGeometry,
   Group,
   InstancedMesh,
-  LineBasicMaterial,
-  LineSegments,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   SphereGeometry,
   Vector3,
 } from "three";
 import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 import { basisVectors } from "./brillouinZone";
@@ -25,14 +26,19 @@ import type { BrillouinZone, KPath, Matrix, Vec3 } from "./types";
 export function label(html: string, position: Vector3, color = "#333"): CSS2DObject {
   const div = document.createElement("div");
   div.innerHTML = html;
-  Object.assign(div.style, {
-    color,
-    font: "13px 'Helvetica Neue', Helvetica, Arial, sans-serif",
-    userSelect: "none",
-  });
+  div.className = "bzv-label";
+  div.style.color = color;
   const obj = new CSS2DObject(div);
   obj.position.copy(position);
+  // Sit just above-right of the anchor instead of centred on it
+  obj.center.set(-0.15, 1.1);
   return obj;
+}
+
+/** Thick line segments (pixel width), from a flat xyz pair list. */
+export function fatLines(positions: ArrayLike<number>, color: ColorRepresentation, width: number) {
+  const geometry = new LineSegmentsGeometry().setPositions(Array.from(positions));
+  return new LineSegments2(geometry, new LineMaterial({ color, linewidth: width }));
 }
 
 const GREEK: Record<string, string> = {
@@ -53,12 +59,13 @@ export interface BZObjectOptions {
   color?: ColorRepresentation;
   opacity?: number;
   edgeColor?: ColorRepresentation;
+  edgeWidth?: number;
 }
 
 /** Transparent zone hull with its edges drawn on top. */
 export function brillouinZoneObject(
   bz: BrillouinZone,
-  { color = 0xd53e4f, opacity = 0.12, edgeColor = 0x333333 }: BZObjectOptions = {},
+  { color = 0x9ab8d8, opacity = 0.18, edgeColor = 0x2b3a4a, edgeWidth = 1.5 }: BZObjectOptions = {},
 ): Group {
   const points: Vector3[] = [];
   for (let i = 0; i < bz.vertices.length; i += 3)
@@ -78,10 +85,7 @@ export function brillouinZoneObject(
         side: DoubleSide,
       }),
     ),
-    new LineSegments(
-      new EdgesGeometry(hull),
-      new LineBasicMaterial({ color: edgeColor }),
-    ),
+    fatLines(new EdgesGeometry(hull).getAttribute("position").array, edgeColor, edgeWidth),
   );
   return group;
 }
@@ -123,6 +127,7 @@ export function reciprocalVectorsObject(
 
 export interface KPathObjectOptions {
   color?: ColorRepresentation;
+  width?: number;
   pointColor?: ColorRepresentation;
   /** Sphere radius, relative to the longest reciprocal vector. */
   pointRadius?: number;
@@ -136,8 +141,9 @@ export function kpathObject(
   kpath: KPath,
   reciprocalBasis: Matrix,
   {
-    color = 0x045add,
-    pointColor = 0x3288bd,
+    color = 0xe8590c,
+    width = 3,
+    pointColor = 0xe8590c,
     pointRadius = 0.02,
     labels = true,
     explicitPoints,
@@ -151,20 +157,15 @@ export function kpathObject(
   group.name = "kpath";
 
   const segmentPoints = kpath.segments.flatMap(([a, b]) => [
-    toCartesian(kpath.points[a]),
-    toCartesian(kpath.points[b]),
+    ...toCartesian(kpath.points[a]).toArray(),
+    ...toCartesian(kpath.points[b]).toArray(),
   ]);
-  group.add(
-    new LineSegments(
-      new BufferGeometry().setFromPoints(segmentPoints),
-      new LineBasicMaterial({ color }),
-    ),
-  );
+  group.add(fatLines(segmentPoints, color, width));
 
   const spheres = (positions: Vector3[], radius: number, c: ColorRepresentation) => {
     const mesh = new InstancedMesh(
-      new SphereGeometry(radius, 16, 12),
-      new MeshBasicMaterial({ color: c }),
+      new SphereGeometry(radius, 20, 14),
+      new MeshStandardMaterial({ color: c, roughness: 0.4 }),
       positions.length,
     );
     positions.forEach((p, i) =>
@@ -178,10 +179,13 @@ export function kpathObject(
   group.add(spheres(named.map(([, p]) => toCartesian(p)), pointRadius * scale, pointColor));
   if (labels)
     for (const [name, p] of named)
-      group.add(label(prettifyLabel(name), toCartesian(p)));
+      group.add(label(prettifyLabel(name), toCartesian(p), "#7a2e05"));
 
-  if (explicitPoints?.length)
-    group.add(spheres(explicitPoints.map(toCartesian), 0.5 * pointRadius * scale, 0x883232));
+  if (explicitPoints?.length) {
+    const points = spheres(explicitPoints.map(toCartesian), 0.45 * pointRadius * scale, 0x8a4b2a);
+    points.name = "pathPoints";
+    group.add(points);
+  }
 
   return group;
 }

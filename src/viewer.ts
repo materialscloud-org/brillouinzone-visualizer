@@ -3,25 +3,38 @@ import {
   Box3,
   DirectionalLight,
   Group,
+  HemisphereLight,
   Object3D,
   OrthographicCamera,
   Scene,
   Vector3,
   WebGLRenderer,
 } from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 
 export interface ViewerOptions {
-  /** CSS background of the container; the canvas itself is transparent. */
-  background?: string;
   /** Extra room around the fitted content, as a factor of its size. */
   padding?: number;
+  /**
+   * Ignore the mouse until the viewer is clicked, and again after a click
+   * elsewhere, so the page scrolls normally over it (default true).
+   */
+  clickToInteract?: boolean;
 }
 
+/** View direction and up vector for the standard camera buttons. */
+export const VIEWS = {
+  x: { direction: new Vector3(1, 0, 0), up: new Vector3(0, 0, 1) },
+  y: { direction: new Vector3(0, 1, 0), up: new Vector3(0, 0, 1) },
+  z: { direction: new Vector3(0, 0, 1), up: new Vector3(0, 1, 0) },
+  default: { direction: new Vector3(1, 0.8, 1.2), up: new Vector3(0, 1, 0) },
+} as const;
+
 /**
- * A minimal three.js viewer: orthographic camera, orbit controls, lights,
- * CSS2D labels, render-on-demand, and resizing with its container.
+ * A minimal three.js viewer: orthographic camera, free (trackball)
+ * rotation, lights, CSS2D labels, render-on-demand, and resizing with its
+ * container.
  */
 export class Viewer {
   readonly scene = new Scene();
@@ -34,18 +47,20 @@ export class Viewer {
     preserveDrawingBuffer: true, // allows screenshots
   });
   readonly labelRenderer = new CSS2DRenderer();
-  readonly controls: OrbitControls;
+  readonly controls: TrackballControls;
 
   private readonly padding: number;
   private readonly resizeObserver: ResizeObserver;
+  private readonly cleanups: (() => void)[] = [];
   private frame = 0;
+  private interacting = false;
+  private interactive = true;
 
   constructor(
     readonly container: HTMLElement,
-    { background, padding = 0.8 }: ViewerOptions = {},
+    { padding = 0.8, clickToInteract = true }: ViewerOptions = {},
   ) {
     this.padding = padding;
-    if (background) container.style.background = background;
     container.style.position ||= "relative";
 
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -60,16 +75,25 @@ export class Viewer {
     });
     container.appendChild(this.labelRenderer.domElement);
 
-    this.scene.add(new AmbientLight(0xffffff, 1.2));
-    const light = new DirectionalLight(0xffffff, 1.8);
+    this.scene.add(new AmbientLight(0xffffff, 0.6));
+    this.scene.add(new HemisphereLight(0xffffff, 0x8899aa, 1.2));
+    const light = new DirectionalLight(0xffffff, 1.6);
     light.position.set(1, 2, 3);
     // Keep the light fixed relative to the view
     this.camera.add(light);
     this.scene.add(this.camera, this.content);
 
     this.camera.position.set(1, 1, 1);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.addEventListener("change", () => this.render());
+    this.controls = new TrackballControls(this.camera, this.renderer.domElement);
+    Object.assign(this.controls, { staticMoving: true, rotateSpeed: 3, zoomSpeed: 1.5 });
+    // Trackball needs update() every frame, so animate only while dragging
+    this.controls.addEventListener("start", () => {
+      this.interacting = true;
+      this.animate();
+    });
+    this.controls.addEventListener("end", () => (this.interacting = false));
+
+    if (clickToInteract) this.setupClickToInteract();
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -89,23 +113,39 @@ export class Viewer {
     return this;
   }
 
-  /** Point the camera at `object` (default: all content) and zoom to fit. */
-  fit(object: Object3D = this.content, direction = new Vector3(1, 0.8, 1.2)) {
+  /** Look at `object` (default: all content) along `direction` and zoom to fit. */
+  fit(
+    object: Object3D = this.content,
+    { direction, up }: { direction: Vector3; up: Vector3 } = VIEWS.default,
+  ) {
     const box = new Box3().setFromObject(object);
     if (box.isEmpty()) return;
     const center = box.getCenter(new Vector3());
     const radius = box.getSize(new Vector3()).length() / 2;
 
     this.controls.target.copy(center);
+    this.camera.up.copy(up);
     this.camera.position
       .copy(center)
-      .addScaledVector(direction.normalize(), radius * 4);
+      .addScaledVector(direction.clone().normalize(), radius * 4);
+    this.camera.lookAt(center);
     this.camera.near = -radius * 10;
     this.camera.far = radius * 10;
     this.camera.zoom = 1 / (radius * this.padding);
     this.camera.updateProjectionMatrix();
-    this.controls.update();
     this.render();
+  }
+
+  /** Enable or disable mouse interaction (see `clickToInteract`). */
+  setInteractive(on: boolean) {
+    this.interactive = on;
+    this.controls.enabled = on;
+    this.renderer.domElement.style.pointerEvents = on ? "" : "none";
+    this.container.dispatchEvent(new CustomEvent("interactivechange", { detail: on }));
+  }
+
+  get isInteractive() {
+    return this.interactive;
   }
 
   /** Request a redraw on the next animation frame. */
@@ -113,9 +153,36 @@ export class Viewer {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
-      this.renderer.render(this.scene, this.camera);
-      this.labelRenderer.render(this.scene, this.camera);
+      this.draw();
     });
+  }
+
+  private draw() {
+    this.renderer.render(this.scene, this.camera);
+    this.labelRenderer.render(this.scene, this.camera);
+  }
+
+  private animate = () => {
+    this.controls.update();
+    this.draw();
+    if (this.interacting) requestAnimationFrame(this.animate);
+  };
+
+  private setupClickToInteract() {
+    this.setInteractive(false);
+    // The canvas ignores the mouse while inactive, so clicks land here
+    const onContainerDown = () => {
+      if (!this.interactive) this.setInteractive(true);
+    };
+    const onDocumentDown = (e: MouseEvent) => {
+      if (this.interactive && !this.container.contains(e.target as Node)) this.setInteractive(false);
+    };
+    this.container.addEventListener("mousedown", onContainerDown);
+    document.addEventListener("mousedown", onDocumentDown);
+    this.cleanups.push(
+      () => this.container.removeEventListener("mousedown", onContainerDown),
+      () => document.removeEventListener("mousedown", onDocumentDown),
+    );
   }
 
   private resize() {
@@ -129,11 +196,14 @@ export class Viewer {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.labelRenderer.setSize(w, h);
+    this.controls.handleResize();
     this.render();
   }
 
   dispose() {
     cancelAnimationFrame(this.frame);
+    this.interacting = false;
+    this.cleanups.forEach((fn) => fn());
     this.resizeObserver.disconnect();
     this.controls.dispose();
     this.renderer.dispose();

@@ -98,6 +98,7 @@ export class FermiSurface extends Group {
   private readonly ranges: [number, number][];
   private readonly cache = new Map<string, BufferGeometry[]>();
   private readonly cachePrecision: number;
+  private readonly clippingPlanes: Plane[];
   private mc: MarchingCubes;
   private maxPolyCount: number;
 
@@ -122,12 +123,10 @@ export class FermiSurface extends Group {
     });
 
     const { size, matrix } = this.sampling;
-    this.maxPolyCount = 8 * size * size;
+    this.maxPolyCount = 16 * size * size;
     this.mc = new MarchingCubes(size, new MeshStandardMaterial(), false, false, this.maxPolyCount);
 
-    const clippingPlanes = clip
-      ? bz.planes.map((p) => new Plane(new Vector3(...p.normal).negate(), p.offset))
-      : [];
+    this.clippingPlanes = bz.planes.map((p) => new Plane(new Vector3(...p.normal).negate(), p.offset));
 
     this.meshes = data.bands.map((band, i) => {
       const mesh = new Mesh(
@@ -137,8 +136,9 @@ export class FermiSurface extends Group {
           opacity,
           transparent: opacity < 1,
           side: DoubleSide,
-          roughness: 0.6,
-          clippingPlanes,
+          roughness: 0.45,
+          metalness: 0.05,
+          clippingPlanes: clip ? this.clippingPlanes : [],
         }),
       );
       mesh.name = band.field ?? `Band ${i + 1}`;
@@ -147,6 +147,15 @@ export class FermiSurface extends Group {
       return mesh;
     });
     this.add(...this.meshes);
+  }
+
+  /** Clip the surfaces to the zone, or show the whole marched region. */
+  setClipping(on: boolean): this {
+    for (const mesh of this.meshes) {
+      mesh.material.clippingPlanes = on ? this.clippingPlanes : [];
+      mesh.material.needsUpdate = true;
+    }
+    return this;
   }
 
   /** Show the isosurfaces at energy `E` (same units as the band data). */
