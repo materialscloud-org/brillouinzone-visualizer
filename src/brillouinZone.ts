@@ -1,4 +1,4 @@
-import { Matrix3, Vector3 } from "three";
+import { Matrix3, Matrix4, Vector3 } from "three";
 import type { BrillouinZone, Matrix, Plane } from "./types";
 
 /** The three rows of a 3x3 matrix as vectors. */
@@ -86,4 +86,16 @@ export function getBrillouinZone(
     vertices: Float64Array.from(vertices.flatMap((v) => v.toArray())),
     planes,
   };
+}
+
+/** True if both bases generate the same lattice (B_a = U B_b, U unimodular). */
+export function sameLattice(a: Matrix, b: Matrix, tolerance = 1e-3): boolean {
+  const toMatrix3 = (m: Matrix) =>
+    new Matrix3().setFromMatrix4(new Matrix4().makeBasis(...basisVectors(m)));
+  // Columns are the basis vectors here, so U^T = Mb^-1 Ma
+  const u = toMatrix3(b).invert().multiply(toMatrix3(a));
+  return (
+    u.elements.every((x) => Math.abs(x - Math.round(x)) < tolerance) &&
+    Math.abs(Math.abs(u.determinant()) - 1) < tolerance
+  );
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
 
-import { getBrillouinZone } from "../src/brillouinZone";
+import { getBrillouinZone, sameLattice } from "../src/brillouinZone";
 import type { Matrix } from "../src/types";
 
 const basis = (rows: number[][]): Matrix => ({ rows: 3, cols: 3, data: Float64Array.from(rows.flat()) });
@@ -55,5 +55,20 @@ describe("getBrillouinZone", () => {
     const ours = new Set<string>();
     for (let i = 0; i < bz.vertices.length; i += 3) ours.add(key([...bz.vertices.slice(i, i + 3)]));
     expect(ours).toEqual(new Set(legacy.vertices.map(key)));
+  });
+});
+
+describe("sameLattice", () => {
+  const fcc = basis([[-1, 1, 1], [1, -1, 1], [1, 1, -1]]);
+  it("accepts a different basis of the same lattice", () => {
+    // b1' = b1 + b2, b2' = b2, b3' = -b3
+    expect(sameLattice(basis([[0, 0, 2], [1, -1, 1], [-1, -1, 1]]), fcc)).toBe(true);
+  });
+  it("rejects a scaled or rotated lattice", () => {
+    expect(sameLattice(basis([[-2, 2, 2], [2, -2, 2], [2, 2, -2]]), fcc)).toBe(false);
+    // 30° about z (90° would be a cubic symmetry, i.e. the same lattice)
+    const [c, s] = [Math.cos(Math.PI / 6), Math.sin(Math.PI / 6)];
+    const rotated = [[-1, 1, 1], [1, -1, 1], [1, 1, -1]].map(([x, y, z]) => [c * x - s * y, s * x + c * y, z]);
+    expect(sameLattice(basis(rotated), fcc)).toBe(false);
   });
 });
