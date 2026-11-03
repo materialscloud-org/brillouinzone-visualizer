@@ -12,8 +12,7 @@ import { fromSeekpathJSON, type SeekpathJSON } from "./seekpath";
 import type { BrillouinZone, FermiSurfaceData, Matrix } from "./types";
 import { injectStyles } from "./ui/styles";
 import { button, checkbox, el } from "./ui/elements";
-// Type-only: the Fermi code is loaded on demand, see `loadFermi`
-import type { FermiSurface, FermiSurfaceOptions } from "./fermi/fermiSurface";
+import { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
 export interface BZVisualizerOptions extends ViewerOptions {
   /** Show the control box below the viewer (default true). */
@@ -35,8 +34,7 @@ export interface BZVisualizerOptions extends ViewerOptions {
 
 /**
  * One component for both use cases: the Brillouin zone with the seekpath
- * k-path, plus Fermi surfaces when band data is given. The Fermi-surface
- * code is a separate chunk that is only fetched in that case.
+ * k-path, plus Fermi surfaces when band data is given.
  *
  * Layout follows mc-react-structure-visualizer: the 3D window on top
  * ("Click to interact"), a control box below.
@@ -46,9 +44,7 @@ export class BZVisualizer {
   readonly viewer: Viewer;
   readonly reciprocalBasis: Matrix;
   readonly bz: BrillouinZone;
-  fermiSurface?: FermiSurface;
-  /** Resolves once everything (including Fermi surfaces) is drawn. */
-  readonly ready: Promise<this>;
+  readonly fermiSurface?: FermiSurface;
 
   private readonly layers: Record<string, Object3D | undefined> = {};
   private readonly controlBox: HTMLDivElement;
@@ -139,12 +135,13 @@ export class BZVisualizer {
     const firstRow = el("div", "bzv-row", [camera]);
     this.controlBox.append(firstRow, toggles);
 
-    this.ready = fermi
-      ? this.loadFermi(fermi, fermiOptions, energy ?? fermi.fermiEnergy).then((surface) => {
-          this.addFermiControls(surface, firstRow, toggles, energyRange, energyStep, fermiOptions?.clip ?? true);
-          return this;
-        })
-      : Promise.resolve(this);
+    if (fermi) {
+      const surface = new FermiSurface(fermi, this.bz, fermiOptions).setEnergy(energy ?? fermi.fermiEnergy);
+      this.fermiSurface = surface;
+      this.layers.fermi = surface;
+      this.viewer.add(surface);
+      this.addFermiControls(surface, firstRow, toggles, energyRange, energyStep, fermiOptions?.clip ?? true);
+    }
   }
 
   /** Show or hide a scene layer: "bz", "vectors", "axes", "kpath", "pathPoints", "fermi". */
@@ -169,15 +166,6 @@ export class BZVisualizer {
     this.fermiSurface?.setEnergy(E);
     this.viewer.render();
     return this;
-  }
-
-  private async loadFermi(data: FermiSurfaceData, options: FermiSurfaceOptions | undefined, energy: number) {
-    const { FermiSurface } = await import("./fermi/fermiSurface");
-    const surface = new FermiSurface(data, this.bz, options).setEnergy(energy);
-    this.fermiSurface = surface;
-    this.layers.fermi = surface;
-    this.viewer.add(surface);
-    return surface;
   }
 
   private addFermiControls(
@@ -263,6 +251,6 @@ export function createBZVisualizer(
   onReady?: (vis: BZVisualizer) => void,
 ): BZVisualizer {
   const vis = new BZVisualizer(container, seekpathData, params);
-  if (onReady) vis.ready.then(onReady);
+  onReady?.(vis);
   return vis;
 }

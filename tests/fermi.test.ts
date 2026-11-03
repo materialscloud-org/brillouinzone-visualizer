@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Matrix3, Matrix4, Vector3 } from "three";
 
 import { getBrillouinZone, basisVectors } from "../src/brillouinZone";
-import { FermiSurface, parseBXSF } from "../src/fermi";
+import { FermiSurface, parseBXSF } from "../src";
 import type { FermiSurfaceData, Matrix } from "../src/types";
 
 const BXSF_DIR = "legacy/fermisurface-visualiser/convert-bxsf/BXSFfiles";

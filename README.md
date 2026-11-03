@@ -14,7 +14,7 @@ import { createBZVisualizer, parseBXSF } from "bz-visualizer";
 // Brillouin zone + k-path
 createBZVisualizer(el, seekpathJson);
 
-// ... plus Fermi surfaces (the Fermi code is fetched only in this case)
+// ... plus Fermi surfaces
 createBZVisualizer(el, seekpathJson, { fermi: parseBXSF(bxsfText) });
 ```
 
@@ -28,16 +28,17 @@ normally over it, and a control box below holds:
 
 Rotation is free (three's TrackballControls), as in 3Dmol.
 
-## Entry points
+## Bundle
 
-| import | contents | three addons used |
-|---|---|---|
-| `bz-visualizer` | `createBZVisualizer` / `BZVisualizer`, `parseBXSF`, and the building blocks (`Viewer`, `getBrillouinZone`, BZ / vectors / k-path objects) | TrackballControls, ConvexGeometry, Line2, CSS2DRenderer; MarchingCubes in a lazily loaded chunk |
-| `bz-visualizer/fermi` | `FermiSurface`, for custom scenes | MarchingCubes |
+One entry, `bz-visualizer`, with the component (`createBZVisualizer` /
+`BZVisualizer`), `parseBXSF`, `FermiSurface`, and the building blocks
+(`Viewer`, `getBrillouinZone`, BZ / vector / k-path objects). three is a
+peer dependency; the addons used are TrackballControls, ConvexGeometry,
+Line2, CSS2DRenderer and MarchingCubes.
 
-The package is marked `sideEffects: false`, and the component loads the
-Fermi-surface code with a dynamic import, so a page that only draws a
-Brillouin zone never downloads it.
+The Fermi-surface code is bundled in rather than split off: it adds about
+6 kB gzipped to an app (most of it three's MarchingCubes), against roughly
+152 kB gzipped for three itself.
 
 ## Data model
 

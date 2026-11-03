@@ -5,7 +5,7 @@ export {
   type BZVisualizerOptions,
 } from "./bzVisualizer";
 export { parseBXSF } from "./fermi/bxsf";
-export type { FermiSurfaceOptions } from "./fermi/fermiSurface";
+export { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
 // Building blocks, for custom scenes
 export { Viewer, VIEWS, type ViewerOptions } from "./viewer";

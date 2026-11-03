@@ -6,10 +6,8 @@ export default defineConfig({
   optimizeDeps: { entries: ["index.html"] },
   build: {
     lib: {
-      entry: {
-        index: resolve(import.meta.dirname, "src/index.ts"),
-        fermi: resolve(import.meta.dirname, "src/fermi/index.ts"),
-      },
+      entry: resolve(import.meta.dirname, "src/index.ts"),
+      fileName: "index",
       formats: ["es"],
     },
     rollupOptions: {
