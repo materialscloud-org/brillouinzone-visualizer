@@ -1,83 +1,93 @@
 # bz-visualizer
 
-Brillouin zone and Fermi surface visualisation on three.js. This repository
-combines the two earlier projects and keeps their history:
+Brillouin zone, k-point and Fermi surface viewer built on three.js. It
+replaces two earlier projects, whose code and history are kept in
+`legacy/`: brillouinzone-visualizer and fermisurface-visualiser.
 
-- `legacy/brillouinzone-visualizer`: materialscloud-org/brillouinzone-visualizer
-- `legacy/fermisurface-visualiser`: materialscloud-org/fermisurface-visualiser
+## Install
 
-## Usage
-
-```ts
-import { createBZVisualizer, parseBXSF } from "bz-visualizer";
-
-// Brillouin zone + k-path
-createBZVisualizer(el, seekpathJson);
-
-// ... plus Fermi surfaces
-createBZVisualizer(el, seekpathJson, { fermi: parseBXSF(bxsfText) });
+```bash
+pnpm add bz-visualizer three
 ```
 
-The widget is laid out like mc-react-structure-visualizer: the 3D window
-ignores the mouse until clicked ("Click to interact"), so the page scrolls
-normally over it, and a control box below holds:
+three is a peer dependency, so your app supplies one copy of it (and its
+addons).
 
-- camera buttons (x, y, z, reset);
-- toggles for the zone, b vectors, axes, k-path, path points and labels;
-- with Fermi data: an E − E_F slider, clipping to the zone, and band chips.
+## Usage (TypeScript)
 
-Rotation is free (three's TrackballControls), as in 3Dmol.
+```ts
+import { BZVisualizer, parseBXSF } from "bz-visualizer";
+import "bz-visualizer/style.css";
 
-## Bundle
+const el = document.getElementById("viz")!; // needs a height
 
-One entry, `bz-visualizer`, with the component (`createBZVisualizer` /
-`BZVisualizer`), `parseBXSF`, `FermiSurface`, and the building blocks
-(`Viewer`, `getBrillouinZone`, BZ / vector / k-path objects). three is a
-peer dependency; the addons used are TrackballControls, ConvexGeometry,
-Line2, CSS2DRenderer and MarchingCubes.
+// Zone + k-path from seekpath JSON
+const vis = new BZVisualizer(el, seekpathJson);
 
-The Fermi-surface code is bundled in rather than split off: it adds about
-6 kB gzipped to an app (most of it three's MarchingCubes), against roughly
-152 kB gzipped for three itself.
+// k-points: explicit (fractional or Cartesian) or an AiiDA-style mesh
+new BZVisualizer(el, { b1, b2, b3, kpoints, mesh: [6, 6, 6], offset: [0.5, 0.5, 0.5] });
 
-## Data model
+// Fermi surfaces from a .bxsf file, with or without a k-path
+new BZVisualizer(el, seekpathJson, { fermi: parseBXSF(bxsfText) });
 
-Everything is derived from the reciprocal basis (`types.ts`):
+vis.dispose(); // when done
+```
 
-- `getBrillouinZone(reciprocalBasis)` returns the zone corners and face planes.
-  three's `ConvexGeometry` and `EdgesGeometry` draw the hull and its edges.
-- Band energies are `VolumetricData` grids on the reciprocal cell, read
-  straight from BXSF without resampling. `FermiSurface` fills a
-  `MarchingCubes` field from the periodic grid over the region around the
-  zone, applies the (possibly sheared) basis as the mesh matrix, and clips
-  to the zone with GPU clipping planes.
+## Usage (TypeScript + React)
 
-`Matrix`, `KPath` and `VolumetricData` are structural copies of the
-matsci-parse types, so matsci-parse objects can be passed in directly.
+```tsx
+import { useEffect, useRef } from "react";
+import { BZVisualizer, type BZVisualizerOptions, type SeekpathJSON } from "bz-visualizer";
+import "bz-visualizer/style.css";
+
+export function BZVis({ data, options }: { data: SeekpathJSON; options?: BZVisualizerOptions }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const vis = new BZVisualizer(ref.current!, data, options);
+    return () => vis.dispose();
+  }, [data, options]); // memoise these, or every new object rebuilds the view
+
+  return <div ref={ref} style={{ height: 500 }} />;
+}
+```
+
+## Input
+
+- **`seekpathJson`**: `b1`, `b2`, `b3` (required), plus optional labelled
+  points (`kpoints_rel` or Cartesian `kpoints`), `path`, explicit points
+  (`explicit_kpoints_rel` or `explicit_kpoints_abs`), or a `mesh` with an
+  `offset` in grid-spacing units. This is the output of seekpath and of
+  matsci-parse `getBrillouinZoneData`.
+- **`fermi`**: band grids, e.g. from `parseBXSF`. Use them as they are; no
+  resampling is needed. If a k-path is also given, it must be on the same
+  lattice, otherwise you get a warning.
+
+## Options
+
+`showAxes`, `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
+`showLabels`, `controls` (set to `false` to hide the bar), and for Fermi
+data `energy`, `energyRange` and `fermiOptions`. At runtime: `setVisible`,
+`setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`.
+
+The viewer ignores the mouse until clicked. Left-drag rotates, right-drag
+pans, the wheel zooms. Under the viewer there are camera buttons, the
+energy slider, and a Settings panel with the layer toggles and colours.
+
+## Styling
+
+`style.css` is a plain stylesheet. Theme it by overriding variables on
+`.bzv`, e.g. `--bzv-accent`, `--bzv-border`, `--bzv-radius`,
+`--bzv-control-background` and `--bzv-font` (all are listed at the top of
+`src/style.css`).
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev        # demo at http://localhost:5173 (loads BXSF files from legacy/)
+pnpm dev        # demo with an example picker, http://localhost:5173
 pnpm test
-pnpm typecheck
 pnpm build
 ```
 
-```ts
-import { Viewer, getBrillouinZone, brillouinZoneObject } from "bz-visualizer";
-import { FermiSurface, parseBXSF } from "bz-visualizer/fermi";
-
-const data = parseBXSF(await fetch("file.bxsf").then((r) => r.text()));
-const bz = getBrillouinZone(data.reciprocalBasis);
-const viewer = new Viewer(container);
-const surface = new FermiSurface(data, bz).setEnergy(data.fermiEnergy);
-viewer.add(brillouinZoneObject(bz), surface);
-viewer.fit();
-
-slider.oninput = () => {
-  surface.setEnergy(+slider.value);
-  viewer.render();
-};
-```
+The demo data is in `demo/data/`.

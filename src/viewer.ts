@@ -72,6 +72,8 @@ export class Viewer {
       top: "0",
       left: "0",
       pointerEvents: "none",
+      // CSS2DRenderer z-sorts labels with z-index; keep that inside this layer
+      zIndex: "1",
     });
     container.appendChild(this.labelRenderer.domElement);
 
@@ -88,6 +90,11 @@ export class Viewer {
     Object.assign(this.controls, { staticMoving: true, rotateSpeed: 3, zoomSpeed: 1.5 });
     // Trackball needs update() every frame, so animate only while dragging
     this.controls.addEventListener("start", () => {
+      // For orthographic cameras TrackballControls pans by (screen fraction)
+      // × (world units per pixel) × (camera distance) × panSpeed. This
+      // panSpeed cancels the extra factors so the scene follows the mouse.
+      this.controls.panSpeed =
+        this.renderer.domElement.clientWidth / this.camera.position.distanceTo(this.controls.target);
       this.interacting = true;
       this.animate();
     });
@@ -123,11 +130,12 @@ export class Viewer {
     const center = box.getCenter(new Vector3());
     const radius = box.getSize(new Vector3()).length() / 2;
 
+    const view = direction.clone().normalize();
     this.controls.target.copy(center);
-    this.camera.up.copy(up);
-    this.camera.position
-      .copy(center)
-      .addScaledVector(direction.clone().normalize(), radius * 4);
+    // Same orientation, but with up perpendicular to the view: TrackballControls
+    // pans along camera.up, and a tilted up makes vertical panning too slow
+    this.camera.up.copy(up).addScaledVector(view, -up.dot(view)).normalize();
+    this.camera.position.copy(center).addScaledVector(view, radius * 4);
     this.camera.lookAt(center);
     this.camera.near = -radius * 10;
     this.camera.far = radius * 10;

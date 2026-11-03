@@ -20,6 +20,7 @@ import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 import { basisVectors } from "./brillouinZone";
+import { foldIntoBZ, toCartesian } from "./kpoints";
 import type { BrillouinZone, KPath, Matrix, Vec3 } from "./types";
 
 /** An HTML label anchored at a 3D position. */
@@ -72,21 +73,23 @@ export function brillouinZoneObject(
     points.push(new Vector3().fromArray(bz.vertices, i));
 
   const hull = new ConvexGeometry(points);
+  const fill = new Mesh(
+    hull,
+    new MeshBasicMaterial({
+      color,
+      opacity,
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+    }),
+  );
+  fill.name = "fill";
+  const edges = fatLines(new EdgesGeometry(hull).getAttribute("position").array, edgeColor, edgeWidth);
+  edges.name = "edges";
+
   const group = new Group();
   group.name = "brillouinZone";
-  group.add(
-    new Mesh(
-      hull,
-      new MeshBasicMaterial({
-        color,
-        opacity,
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-      }),
-    ),
-    fatLines(new EdgesGeometry(hull).getAttribute("position").array, edgeColor, edgeWidth),
-  );
+  group.add(fill, edges);
   return group;
 }
 
@@ -125,6 +128,23 @@ export function reciprocalVectorsObject(
   return group;
 }
 
+/** Shaded spheres at `positions`, drawn as one instanced mesh. */
+export function sphereInstances(positions: Vector3[], radius: number, color: ColorRepresentation) {
+  const mesh = new InstancedMesh(
+    new SphereGeometry(radius, 16, 12),
+    new MeshStandardMaterial({ color, roughness: 0.4 }),
+    positions.length,
+  );
+  const m = new Matrix4();
+  positions.forEach((p, i) => mesh.setMatrixAt(i, m.makeTranslation(p)));
+  mesh.computeBoundingSphere();
+  return mesh;
+}
+
+/** Largest reciprocal vector length, the natural scale of a scene. */
+const longestVector = (reciprocalBasis: Matrix) =>
+  Math.max(...basisVectors(reciprocalBasis).map((b) => b.length()));
+
 export interface KPathObjectOptions {
   color?: ColorRepresentation;
   width?: number;
@@ -132,11 +152,9 @@ export interface KPathObjectOptions {
   /** Sphere radius, relative to the longest reciprocal vector. */
   pointRadius?: number;
   labels?: boolean;
-  /** Discrete points along the path (fractional), drawn as small spheres. */
-  explicitPoints?: readonly Vec3[];
 }
 
-/** The high-symmetry path: segments, labelled points, optional sample points. */
+/** The high-symmetry path: segments and labelled points (segments may be empty). */
 export function kpathObject(
   kpath: KPath,
   reciprocalBasis: Matrix,
@@ -146,47 +164,63 @@ export function kpathObject(
     pointColor = 0xe8590c,
     pointRadius = 0.02,
     labels = true,
-    explicitPoints,
   }: KPathObjectOptions = {},
 ): Group {
-  const basis = new Matrix4().makeBasis(...basisVectors(reciprocalBasis));
-  const toCartesian = (frac: Vec3) => new Vector3(...frac).applyMatrix4(basis);
-  const scale = Math.max(...basisVectors(reciprocalBasis).map((b) => b.length()));
+  const cartesian = (frac: Vec3) => toCartesian(frac, reciprocalBasis);
+  const scale = longestVector(reciprocalBasis);
 
   const group = new Group();
   group.name = "kpath";
 
-  const segmentPoints = kpath.segments.flatMap(([a, b]) => [
-    ...toCartesian(kpath.points[a]).toArray(),
-    ...toCartesian(kpath.points[b]).toArray(),
-  ]);
-  group.add(fatLines(segmentPoints, color, width));
-
-  const spheres = (positions: Vector3[], radius: number, c: ColorRepresentation) => {
-    const mesh = new InstancedMesh(
-      new SphereGeometry(radius, 20, 14),
-      new MeshStandardMaterial({ color: c, roughness: 0.4 }),
-      positions.length,
-    );
-    positions.forEach((p, i) =>
-      mesh.setMatrixAt(i, new Matrix4().makeTranslation(p)),
-    );
-    mesh.computeBoundingSphere();
-    return mesh;
-  };
-
-  const named = Object.entries(kpath.points);
-  group.add(spheres(named.map(([, p]) => toCartesian(p)), pointRadius * scale, pointColor));
-  if (labels)
-    for (const [name, p] of named)
-      group.add(label(prettifyLabel(name), toCartesian(p), "#7a2e05"));
-
-  if (explicitPoints?.length) {
-    const points = spheres(explicitPoints.map(toCartesian), 0.45 * pointRadius * scale, 0x8a4b2a);
-    points.name = "pathPoints";
-    group.add(points);
+  if (kpath.segments.length) {
+    const segmentPoints = kpath.segments.flatMap(([a, b]) => [
+      ...cartesian(kpath.points[a]).toArray(),
+      ...cartesian(kpath.points[b]).toArray(),
+    ]);
+    group.add(fatLines(segmentPoints, color, width));
   }
 
+  const named = Object.entries(kpath.points);
+  group.add(sphereInstances(named.map(([, p]) => cartesian(p)), pointRadius * scale, pointColor));
+  if (labels)
+    for (const [name, p] of named)
+      group.add(label(prettifyLabel(name), cartesian(p), "#7a2e05"));
+
+  return group;
+}
+
+export interface KPointsObjectOptions {
+  color?: ColorRepresentation;
+  /** Sphere radius in reciprocal-space units; defaults to a size suited to the point spacing. */
+  radius?: number;
+}
+
+/**
+ * Explicit k-points (a path sampling, a mesh, an irreducible set), given in
+ * fractional coordinates. Holds two copies: "cell", the points as given, and
+ * "folded", each moved into the first Brillouin zone; show one or the other.
+ */
+export function kpointsObject(
+  points: readonly Vec3[],
+  reciprocalBasis: Matrix,
+  { color = 0x8a4b2a, radius }: KPointsObjectOptions = {},
+): Group {
+  const scale = longestVector(reciprocalBasis);
+  // Shrink the spheres for dense sets: ~ a quarter of the typical spacing
+  const cellVolume = Math.abs(basisVectors(reciprocalBasis)[0]
+    .dot(basisVectors(reciprocalBasis)[1].clone().cross(basisVectors(reciprocalBasis)[2])));
+  const spacing = Math.cbrt(cellVolume / Math.max(points.length, 1));
+  const r = radius ?? Math.min(0.009 * scale, 0.22 * spacing);
+
+  const cell = sphereInstances(points.map((p) => toCartesian(p, reciprocalBasis)), r, color);
+  cell.name = "cell";
+  const folded = sphereInstances(foldIntoBZ(points, reciprocalBasis), r, color);
+  folded.name = "folded";
+  folded.visible = false;
+
+  const group = new Group();
+  group.name = "kpoints";
+  group.add(cell, folded);
   return group;
 }
 

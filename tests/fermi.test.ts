@@ -6,7 +6,7 @@ import { getBrillouinZone, basisVectors } from "../src/brillouinZone";
 import { FermiSurface, parseBXSF } from "../src";
 import type { FermiSurfaceData, Matrix } from "../src/types";
 
-const BXSF_DIR = "legacy/fermisurface-visualiser/convert-bxsf/BXSFfiles";
+const BXSF_DIR = "demo/data";
 
 describe("parseBXSF", () => {
   const text = readFileSync(`${BXSF_DIR}/example.bxsf`, "utf8");

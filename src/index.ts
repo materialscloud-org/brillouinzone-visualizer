@@ -12,3 +12,4 @@ export { Viewer, VIEWS, type ViewerOptions } from "./viewer";
 export { getBrillouinZone, basisVectors, sameLattice } from "./brillouinZone";
 export * from "./objects";
 export * from "./seekpath";
+export { kgridPoints, foldIntoBZ, toCartesian, toFractional } from "./kpoints";

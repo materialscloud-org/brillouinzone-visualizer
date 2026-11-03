@@ -27,6 +27,17 @@ export interface KPath {
 }
 
 /**
+ * A regular k-point grid (matsci-parse `KGrid`). Grid index [i, j, k] sits
+ * at `origin + [i / n1, j / n2, k / n3]`, fractional reciprocal coordinates.
+ */
+export interface KGrid {
+  readonly kind: "grid";
+  readonly mesh: readonly [number, number, number];
+  readonly origin: Vec3;
+  readonly scheme: "monkhorst-pack" | "gamma-centered";
+}
+
+/**
  * Scalar volumetric grid (matsci-parse `VolumetricData`).
  *
  * `shape` is [D, H, W], slowest axis first: voxel (x, y, z) has x ∈ [0, W)
