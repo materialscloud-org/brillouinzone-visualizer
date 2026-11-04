@@ -128,15 +128,24 @@ export class Viewer {
     return this;
   }
 
-  /** Look at `object` (default: all content) along `direction` and zoom to fit. */
+  /**
+   * Look at the origin (Γ) along `direction` and zoom to fit `object`
+   * (default: all content). Rotation is about the origin, not the centre of
+   * the content, which the axes and b-vectors pull off Γ.
+   */
   fit(
     object: Object3D = this.content,
     { direction, up }: { direction: Vector3; up: Vector3 } = VIEWS.default,
   ) {
     const box = new Box3().setFromObject(object);
     if (box.isEmpty()) return;
-    const center = box.getCenter(new Vector3());
-    const radius = box.getSize(new Vector3()).length() / 2;
+    const center = new Vector3();
+    // Farthest corner of the box from the origin
+    const radius = new Vector3(
+      Math.max(-box.min.x, box.max.x),
+      Math.max(-box.min.y, box.max.y),
+      Math.max(-box.min.z, box.max.z),
+    ).length();
 
     const view = direction.clone().normalize();
     this.controls.target.copy(center);
