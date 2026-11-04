@@ -1,5 +1,8 @@
 import type { FermiSurfaceData, Matrix, VolumetricData } from "../types";
 
+// TODO: Bench, test and rewrite this for perf.
+// TODO2: move this upstream to matsci-parse
+
 /**
  * Parse an XCrySDen band-grid file (.bxsf).
  *
