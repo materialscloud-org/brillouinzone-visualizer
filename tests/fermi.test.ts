@@ -99,4 +99,24 @@ describe("FermiSurface", () => {
       expect(insideZone).toBeLessThan(pos.count);
     });
   }
+
+  it("cut planes remove the side the normal points to, on top of the zone", () => {
+    const surface = new FermiSurface(data, bz, {
+      cutPlanes: [{ point: [0, 0, 0.5], normal: [0, 0, 2] }],
+    });
+    const planes = () => surface.meshes[0].material.clippingPlanes!;
+    // three keeps the side where distanceToPoint >= 0
+    const cut = planes().at(-1)!;
+    expect(cut.distanceToPoint(new Vector3(0, 0, 0))).toBeCloseTo(0.5);
+    expect(cut.distanceToPoint(new Vector3(0, 0, 1))).toBeCloseTo(-0.5);
+    expect(planes()).toHaveLength(bz.planes.length + 1);
+
+    surface.setClipping(false);
+    expect(planes()).toHaveLength(1);
+    surface.setCutPlanes([]);
+    expect(planes()).toHaveLength(0);
+    expect(() =>
+      surface.setCutPlanes([{ point: [0, 0, 0], normal: [0, 0, 0] }]),
+    ).toThrow();
+  });
 });

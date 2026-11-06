@@ -62,6 +62,15 @@ export interface Plane {
 }
 
 /**
+ * A plane to cut the Fermi surfaces with, in Cartesian k: everything on the
+ * side `normal` points to is removed.
+ */
+export interface CutPlane {
+  readonly point: Vec3;
+  readonly normal: Vec3;
+}
+
+/**
  * The first Brillouin zone in Cartesian reciprocal coordinates.
  * Fully determined by `reciprocalBasis`; build it with `getBrillouinZone`.
  */

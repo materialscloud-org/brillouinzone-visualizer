@@ -85,7 +85,19 @@ export function BZVis({
 `showAxes`, `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
 `showLabels`, `controls` (set to `false` to hide the bar), and for Fermi
 data `energy`, `energyRange` and `fermiOptions`. At runtime: `setVisible`,
-`setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`.
+`setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
+`setCutPlanes`.
+
+To cut the Fermi surfaces open, pass planes as a point and a normal in
+Cartesian k; the side the normal points to is removed:
+
+```ts
+new BZVisualizer(el, seekpathJson, {
+  fermi,
+  fermiOptions: { cutPlanes: [{ point: [0, 0, 0], normal: [0, 0, 1] }] },
+});
+vis.setCutPlanes([]); // remove the cuts
+```
 
 The viewer ignores the mouse until clicked. Left-drag rotates, right-drag
 pans, the wheel zooms. Under the viewer there are camera buttons, the

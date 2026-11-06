@@ -16,7 +16,12 @@ import {
   reciprocalVectorsObject,
 } from "./objects";
 import { fromSeekpathJSON, type SeekpathJSON } from "./seekpath";
-import type { BrillouinZone, FermiSurfaceData, Matrix } from "./types";
+import type {
+  BrillouinZone,
+  CutPlane,
+  FermiSurfaceData,
+  Matrix,
+} from "./types";
 import {
   button,
   checkbox,
@@ -328,6 +333,16 @@ export class BZVisualizer {
   /** Move the Fermi surfaces to energy `E` (no-op without Fermi data). */
   setEnergy(E: number): this {
     this.fermiSurface?.setEnergy(E);
+    this.viewer.render();
+    return this;
+  }
+
+  /**
+   * Cut the Fermi surfaces with planes, removing the side each normal points
+   * to (`[]` removes the cuts; no-op without Fermi data).
+   */
+  setCutPlanes(planes: readonly CutPlane[]): this {
+    this.fermiSurface?.setCutPlanes(planes);
     this.viewer.render();
     return this;
   }

@@ -14,7 +14,12 @@ import {
 import { MarchingCubes } from "three/addons/objects/MarchingCubes.js";
 
 import { basisVectors } from "../brillouinZone";
-import type { BrillouinZone, FermiSurfaceData, VolumetricData } from "../types";
+import type {
+  BrillouinZone,
+  CutPlane,
+  FermiSurfaceData,
+  VolumetricData,
+} from "../types";
 
 // plotly default palette
 const PALETTE = [
@@ -35,6 +40,8 @@ export interface FermiSurfaceOptions {
   opacity?: number;
   /** Clip the surfaces to the zone (GPU clipping planes). */
   clip?: boolean;
+  /** Extra planes to cut the surfaces with (see `CutPlane`). */
+  cutPlanes?: readonly CutPlane[];
   /** Energies are cached after rounding to this many decimals. */
   cachePrecision?: number;
 }
@@ -119,7 +126,9 @@ export class FermiSurface extends Group {
   private readonly ranges: [number, number][];
   private readonly cache = new Map<string, BufferGeometry[]>();
   private readonly cachePrecision: number;
-  private readonly clippingPlanes: Plane[];
+  private readonly zonePlanes: Plane[];
+  private clipToZone: boolean;
+  private cutPlanes: Plane[] = [];
   private mc: MarchingCubes;
   private maxPolyCount: number;
 
@@ -130,6 +139,7 @@ export class FermiSurface extends Group {
       colors = PALETTE,
       opacity = 1,
       clip = true,
+      cutPlanes = [],
       cachePrecision = 3,
     }: FermiSurfaceOptions = {},
   ) {
@@ -158,9 +168,11 @@ export class FermiSurface extends Group {
       this.maxPolyCount,
     );
 
-    this.clippingPlanes = bz.planes.map(
+    // three keeps the side a plane's normal points to, so flip ours
+    this.zonePlanes = bz.planes.map(
       (p) => new Plane(new Vector3(...p.normal).negate(), p.offset),
     );
+    this.clipToZone = clip;
 
     this.meshes = data.bands.map((band, i) => {
       const mesh = new Mesh(
@@ -172,7 +184,6 @@ export class FermiSurface extends Group {
           side: DoubleSide,
           roughness: 0.45,
           metalness: 0.05,
-          clippingPlanes: clip ? this.clippingPlanes : [],
         }),
       );
       mesh.name = band.field ?? `Band ${i + 1}`;
@@ -181,12 +192,35 @@ export class FermiSurface extends Group {
       return mesh;
     });
     this.add(...this.meshes);
+    this.setCutPlanes(cutPlanes);
   }
 
   /** Clip the surfaces to the zone, or show the whole marched region. */
   setClipping(on: boolean): this {
+    this.clipToZone = on;
+    return this.updateClipping();
+  }
+
+  /** Replace the cut planes (`[]` removes them). */
+  setCutPlanes(planes: readonly CutPlane[]): this {
+    this.cutPlanes = planes.map(({ point, normal }) => {
+      const n = new Vector3(...normal);
+      if (n.lengthSq() === 0) throw new Error("Cut plane: zero normal");
+      return new Plane().setFromNormalAndCoplanarPoint(
+        n.normalize().negate(),
+        new Vector3(...point),
+      );
+    });
+    return this.updateClipping();
+  }
+
+  private updateClipping(): this {
+    const planes = [
+      ...(this.clipToZone ? this.zonePlanes : []),
+      ...this.cutPlanes,
+    ];
     for (const mesh of this.meshes) {
-      mesh.material.clippingPlanes = on ? this.clippingPlanes : [];
+      mesh.material.clippingPlanes = planes;
       mesh.material.needsUpdate = true;
     }
     return this;
