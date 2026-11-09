@@ -11,10 +11,10 @@
   --bzv-background: #fff;
   --bzv-border: #999;
   --bzv-radius: 5px;
-  --bzv-control-background: #f8f8f8;
-  --bzv-button-background: #e0e0e0;
-  --bzv-button-hover: #b9b9b9;
-  --bzv-accent: #1f77b4;
+  --bzv-control-background: none;
+  --bzv-button-background: none;
+  --bzv-button-hover: #dedede;
+  --bzv-accent: #1571cd;
   --bzv-panel-width: 220px;
 
   width: 100%;
@@ -77,35 +77,26 @@
 }
 
 .bzv-label {
-  font-size: 13px;
-  font-weight: 600;
-  pointer-events: none;
-  user-select: none;
+  font-size: 15px;
+  /* For visibility */
   text-shadow:
     0 0 2px #fff,
     0 0 2px #fff,
     0 0 3px #fff;
 }
 
-/* --- settings panel (opened from the bar, over the 3D window) ----------- */
+/* --- settings panel (opens under the controls, on the right) ------------ */
 
 .bzv-panel {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  z-index: 4;
   display: none;
+  align-self: flex-end;
   width: var(--bzv-panel-width);
-  max-height: calc(100% - 12px);
+  min-height: 0;
   padding: 6px 10px 8px;
   overflow-y: auto;
   border: 1px solid var(--bzv-border);
   border-radius: var(--bzv-radius);
-  background: color-mix(
-    in srgb,
-    var(--bzv-control-background) 94%,
-    transparent
-  );
+  background: rgba(250, 250, 250, 0.9);
   box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   font-size: 13px;
 }
@@ -114,21 +105,12 @@
   display: block;
 }
 
-.bzv-panel h4 {
-  margin: 6px 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #666;
-}
-
 .bzv-panel-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  min-height: 24px;
+  gap: 8px;
+  min-height: 28px;
 }
 
 .bzv-panel-row .bzv-tools {
@@ -161,15 +143,16 @@
 }
 
 .bzv-color {
-  width: 22px;
-  height: 18px;
+  width: 26px;
+  height: 20px;
   padding: 0;
   border: 1px solid var(--bzv-border);
-  border-radius: 3px;
+  border-radius: 4px;
   background: none;
   cursor: pointer;
 }
 
+/* color selector stuff */
 .bzv-color::-webkit-color-swatch-wrapper {
   padding: 0;
 }
@@ -274,28 +257,42 @@
   text-decoration: line-through;
 }
 
-/* --- control box ---------------------------------------------------------------- */
+/* --- controls, floating over the top of the 3D window --------------------- */
 
+/* Only the controls themselves take the mouse; the gaps leave it to the scene */
 .bzv-controls {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--bzv-border);
-  background: var(--bzv-control-background);
+  max-height: calc(100% - 12px);
+  pointer-events: none;
 }
 
 .bzv-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
+  gap: 6px;
 }
 
 .bzv-group {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  padding: 3px 6px;
+  border-radius: var(--bzv-radius);
+  background: var(--bzv-control-background);
+}
+
+.bzv-group,
+.bzv-button,
+.bzv-panel {
+  pointer-events: auto;
 }
 
 .bzv-button {
@@ -315,6 +312,7 @@
 }
 
 .bzv-settings-button {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -323,16 +321,6 @@
 .bzv-settings-button svg {
   width: 15px;
   height: 15px;
-}
-
-.bzv-row-end {
-  justify-content: flex-end;
-}
-
-/* First row: camera left, energy fills the rest; never wraps */
-.bzv-row-main {
-  flex-wrap: nowrap;
-  gap: 10px;
 }
 
 .bzv-energy {

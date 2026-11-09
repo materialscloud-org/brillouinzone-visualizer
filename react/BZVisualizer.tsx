@@ -10,7 +10,6 @@ import {
 import {
   BZVisualizer as Core,
   sameLattice,
-  type BZColors,
   type BZVisualizerOptions,
   type CameraState,
   type CutPlane,
@@ -32,15 +31,6 @@ export interface BZVisualizerProps extends Omit<BZVisualizerOptions, "fermi"> {
   className?: string;
   style?: CSSProperties;
 }
-
-// Where each colour key goes: [layer, part]
-const COLOR_TARGETS: Record<keyof BZColors, [string, string]> = {
-  zone: ["bz", "fill"],
-  zoneEdges: ["bz", "edges"],
-  kpath: ["kpath", "path"],
-  highSymmetryPoints: ["kpath", "points"],
-  kpoints: ["kpoints", ""],
-};
 
 /** The reciprocal lattice that defines the zone: the band data's, else the k-path's. */
 function zoneKey(seekpath?: SeekpathJSON, fermi?: FermiSurfaceData) {
@@ -90,8 +80,18 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
     } = options;
     const zone = zoneKey(seekpath, fermi);
     const shapeKey = JSON.stringify(shape);
-    const colorsKey = JSON.stringify(colors ?? {});
-    const cutKey = JSON.stringify(cutPlanes ?? []);
+    // The live options; a removed cutPlanes prop removes the cuts
+    const liveKey = JSON.stringify({
+      showAxes,
+      showBVectors,
+      showKPath,
+      showKPoints,
+      showPathpoints,
+      foldKPoints,
+      showLabels,
+      colors,
+      cutPlanes: cutPlanes ?? [],
+    });
 
     const container = useRef<HTMLDivElement>(null);
     // `vis` re-renders on a rebuild; `live` is the widget effects act on
@@ -162,41 +162,8 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
       if (energy !== undefined) live.current?.setEnergy(energy);
     }, [vis, energy]);
     useEffect(() => {
-      live.current?.setCutPlanes(JSON.parse(cutKey));
-    }, [vis, cutKey]);
-    useEffect(() => {
-      const v = live.current;
-      if (!v) return;
-      const colors: BZColors = JSON.parse(colorsKey);
-      for (const [key, color] of Object.entries(colors)) {
-        const [layer, part] = COLOR_TARGETS[key as keyof BZColors] ?? [];
-        if (layer && color != null) v.setColor(layer, color, part);
-      }
-    }, [vis, colorsKey]);
-
-    const kpoints = showKPoints ?? showPathpoints;
-    useEffect(() => {
-      const v = live.current;
-      if (!v) return;
-      const flags: [string, boolean | undefined][] = [
-        ["axes", showAxes],
-        ["vectors", showBVectors],
-        ["kpath", showKPath],
-        ["kpoints", kpoints],
-      ];
-      for (const [layer, on] of flags)
-        if (on !== undefined) v.setVisible(layer, on);
-      if (foldKPoints !== undefined) v.setFolded(foldKPoints);
-      if (showLabels !== undefined) v.setLabels(showLabels);
-    }, [
-      vis,
-      showAxes,
-      showBVectors,
-      showKPath,
-      kpoints,
-      foldKPoints,
-      showLabels,
-    ]);
+      live.current?.setOptions(JSON.parse(liveKey));
+    }, [vis, liveKey]);
 
     return <div ref={container} className={className} style={style} />;
   },

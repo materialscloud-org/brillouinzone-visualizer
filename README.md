@@ -89,8 +89,10 @@ export function FermiView({ seekpath, fermi }) {
 ## Options
 
 `showAxes`, `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
-`showLabels`, `controls` (set to `false` to hide the bar), and for Fermi
-data `energy`, `energyRange` and `fermiOptions`. At runtime: `setVisible`,
+`showLabels`, `controls` (set to `false` to hide the controls), and for Fermi
+data `energy`, `energyRange` and `fermiOptions`. At runtime: `setOptions`
+(the `show*` flags, `foldKPoints`, `colors`, `energy`, `cutPlanes`),
+`setVisible`,
 `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
 `setCutPlanes`, and `setSeekpath` / `setFermi` to replace the k-points or
 band data in place (same lattice; settings and camera stay, the energy keeps
@@ -108,8 +110,26 @@ vis.setCutPlanes([]); // remove the cuts
 ```
 
 The viewer ignores the mouse until clicked. Left-drag rotates, right-drag
-pans, the wheel zooms. Under the viewer there are camera buttons, the
+pans, the wheel zooms. Over the top of the viewer float camera buttons, the
 energy slider, and a Settings panel with the layer toggles and colours.
+
+### Your own controls
+
+Pass `controls: false` and build them from the public API. Read the state
+with `isVisible`, `getColor`, `getOpacity`, `energy`, `folded`,
+`labelsShown`, `clipping` and `fermiSurface`; change it with the setters;
+redraw when `vis.element` fires `"statechange"` (after every change,
+including ones from code). The built-in panel, `src/ui/controls.ts`, is
+written this way and makes a working example.
+
+```ts
+const vis = new BZVisualizer(el, data, { controls: false });
+const axes = document.querySelector<HTMLInputElement>("#axes")!;
+axes.onchange = () => vis.setVisible("axes", axes.checked);
+vis.element.addEventListener("statechange", () => {
+  axes.checked = vis.isVisible("axes");
+});
+```
 
 ## Styling
 

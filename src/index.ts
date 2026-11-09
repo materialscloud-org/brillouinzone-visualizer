@@ -3,9 +3,11 @@ export {
   BZVisualizer,
   createBZVisualizer,
   type BZColors,
+  type BZLiveOptions,
   type BZVisualizerOptions,
 } from "./bzVisualizer";
 export { parseBXSF } from "./fermi/bxsf";
+export { buildControls, type ControlsOptions } from "./ui/controls";
 export { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
 // Building blocks, for custom scenes
