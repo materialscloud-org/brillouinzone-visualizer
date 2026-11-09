@@ -11,6 +11,7 @@ import { basisVectors, getBrillouinZone, sameLattice } from "./brillouinZone";
 import {
   axesObject,
   brillouinZoneObject,
+  disposeObject,
   kpathObject,
   kpointsObject,
   reciprocalVectorsObject,
@@ -33,6 +34,15 @@ import {
 } from "./ui/elements";
 import { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
+/** Layer colours; anything left out keeps its default. */
+export interface BZColors {
+  zone?: ColorRepresentation;
+  zoneEdges?: ColorRepresentation;
+  kpath?: ColorRepresentation;
+  highSymmetryPoints?: ColorRepresentation;
+  kpoints?: ColorRepresentation;
+}
+
 export interface BZVisualizerOptions extends ViewerOptions {
   /** Show the control bar below the viewer, with its settings panel (default true). */
   controls?: boolean;
@@ -46,6 +56,8 @@ export interface BZVisualizerOptions extends ViewerOptions {
   /** Show the k-points moved into the first zone instead of as given. */
   foldKPoints?: boolean;
   showLabels?: boolean;
+  /** Initial colours; change them later with `setColor`. */
+  colors?: BZColors;
   /** Band grids (e.g. from `parseBXSF`); adds Fermi surfaces to the zone. */
   fermi?: FermiSurfaceData;
   fermiOptions?: FermiSurfaceOptions;
@@ -68,10 +80,26 @@ export class BZVisualizer {
   readonly viewer: Viewer;
   readonly reciprocalBasis: Matrix;
   readonly bz: BrillouinZone;
-  readonly fermiSurface?: FermiSurface;
 
   private readonly layers: Record<string, Object3D | undefined> = {};
   private readonly cleanups: (() => void)[] = [];
+  /** Updates a settings control after a setter call, keyed like `visible:axes`. */
+  private readonly syncs = new Map<string, (value: never) => void>();
+  // Settings, kept so that replaced layers (`setSeekpath`) look the same
+  private readonly visibility: Record<string, boolean> = {};
+  private readonly colorChoices = new Map<string, ColorRepresentation>();
+  private readonly opacityChoices = new Map<string, number>();
+  private folded = false;
+  // Fermi surfaces (replaceable with `setFermi`) and their controls
+  private surface?: FermiSurface;
+  private readonly fermiOptions: FermiSurfaceOptions;
+  private clipToZone: boolean;
+  private cutPlanes: readonly CutPlane[];
+  private readonly energyRange: [number, number];
+  private readonly energyStep: number;
+  private energySlot?: HTMLElement;
+  private bandsSlot?: HTMLElement;
+  private labelsShown = true;
 
   constructor(
     container: HTMLElement,
@@ -90,6 +118,7 @@ export class BZVisualizer {
       showKPoints = showPathpoints,
       foldKPoints = false,
       showLabels = true,
+      colors = {},
       ...viewerOptions
     }: BZVisualizerOptions = {},
   ) {
@@ -109,6 +138,11 @@ export class BZVisualizer {
       );
     this.reciprocalBasis = basis;
     this.bz = getBrillouinZone(basis);
+    this.fermiOptions = fermiOptions ?? {};
+    this.clipToZone = this.fermiOptions.clip ?? true;
+    this.cutPlanes = this.fermiOptions.cutPlanes ?? [];
+    this.energyRange = energyRange;
+    this.energyStep = energyStep;
 
     // --- DOM ---------------------------------------------------------------
     const windowEl = el("div", "bzv-window");
@@ -131,32 +165,36 @@ export class BZVisualizer {
     windowEl.appendChild(note);
 
     // --- scene -------------------------------------------------------------
+    Object.assign(this.visibility, {
+      vectors: showBVectors,
+      axes: showAxes,
+      kpath: showKPath,
+      kpoints: showKPoints,
+    });
+    this.folded = foldKPoints;
+    this.labelsShown = showLabels;
+    for (const [key, color] of [
+      ["kpath:path", colors.kpath],
+      ["kpath:points", colors.highSymmetryPoints],
+      ["kpoints:", colors.kpoints],
+    ] as const)
+      if (color != null) this.colorChoices.set(key, color);
+
     const longest = Math.max(...basisVectors(basis).map((b) => b.length()));
     this.layers.bz = brillouinZoneObject(this.bz, {
       opacity: fermi ? 0.08 : 0.18,
+      color: colors.zone,
+      edgeColor: colors.zoneEdges,
     });
     this.layers.vectors = reciprocalVectorsObject(basis);
     this.layers.axes = axesObject(longest * 1.4);
-    if (path?.kpath)
-      this.layers.kpath = kpathObject(path.kpath, path.reciprocalBasis);
-    if (path?.points?.length)
-      this.layers.kpoints = kpointsObject(path.points, path.reciprocalBasis);
-    if (fermi) {
-      this.fermiSurface = new FermiSurface(
-        fermi,
-        this.bz,
-        fermiOptions,
-      ).setEnergy(energy ?? fermi.fermiEnergy);
-      this.layers.fermi = this.fermiSurface;
-    }
     for (const layer of Object.values(this.layers))
       if (layer) this.viewer.add(layer);
+    this.setPathLayers(path);
+    this.setFermiLayer(fermi, energy);
 
     this.setVisible("vectors", showBVectors);
     this.setVisible("axes", showAxes);
-    this.setVisible("kpath", showKPath);
-    this.setVisible("kpoints", showKPoints);
-    this.setFolded(foldKPoints);
     this.setLabels(showLabels);
     this.viewer.fit();
 
@@ -172,25 +210,73 @@ export class BZVisualizer {
         button("reset", () => this.viewer.fit()),
       ]),
     ]);
-    if (this.fermiSurface)
-      firstRow.append(
-        this.energyControl(this.fermiSurface, energyRange, energyStep),
-      );
+    // Filled (and refilled by `setFermi`) by fermiControls
+    this.energySlot = el("div", "bzv-group bzv-energy");
+    this.bandsSlot = el("div");
+    firstRow.append(this.energySlot);
+    this.fermiControls();
 
     const toggle = (
       name: string,
       text: string,
       on: boolean,
       ...tools: HTMLElement[]
-    ) =>
-      el("div", "bzv-panel-row", [
-        checkbox(text, on, (v) => this.setVisible(name, v)),
-        el("span", "bzv-tools", tools),
-      ]);
-    const color = (name: string, part = "") =>
-      colorInput(this.getColor(name, part), "Colour", (c) =>
+    ) => {
+      const box = checkbox(text, on, (v) => this.setVisible(name, v));
+      this.onSync(`visible:${name}`, (v: boolean) => {
+        box.querySelector("input")!.checked = v;
+      });
+      return el("div", "bzv-panel-row", [box, el("span", "bzv-tools", tools)]);
+    };
+    const color = (name: string, part = "") => {
+      const input = colorInput(this.getColor(name, part), "Colour", (c) =>
         this.setColor(name, c, part),
       );
+      this.onSync(`color:${name}:${part}`, (c: string) => (input.value = c));
+      return input;
+    };
+    const zoneOpacity = rangeInput(
+      0,
+      1,
+      0.01,
+      this.getOpacity("bz"),
+      "Opacity",
+      (v) => this.setOpacity("bz", v),
+    );
+    this.onSync("opacity:bz", (v: number) => (zoneOpacity.value = String(v)));
+    const fold = toggleSwitch("Fold into BZ", foldKPoints, (on) =>
+      this.setFolded(on),
+    );
+    this.onSync("folded", (v: boolean) => {
+      fold.querySelector("input")!.checked = v;
+    });
+    const labels = checkbox("Labels", showLabels, (on) => this.setLabels(on));
+    this.onSync("labels", (v: boolean) => {
+      labels.querySelector("input")!.checked = v;
+    });
+
+    // The k-path and k-point rows stay hidden until there is such a layer
+    const pathColor = color("kpath", "path");
+    const kpathRow = toggle(
+      "kpath",
+      "k-path",
+      showKPath,
+      pathColor,
+      color("kpath", "points"),
+    );
+    const kpointsRow = toggle(
+      "kpoints",
+      "k-points",
+      showKPoints,
+      color("kpoints"),
+    );
+    const foldRow = el("div", "bzv-panel-row indent", [fold]);
+    this.onSync("present", () => {
+      kpathRow.hidden = !this.layers.kpath;
+      pathColor.hidden = !this.layers.kpath?.getObjectByName("path");
+      kpointsRow.hidden = foldRow.hidden = !this.layers.kpoints;
+    });
+    this.sync("present", null);
 
     const panel = el("div", "bzv-panel", [
       el("h4", "", ["Layers"]),
@@ -198,33 +284,17 @@ export class BZVisualizer {
         "bz",
         "Zone",
         true,
-        rangeInput(0, 1, 0.01, this.getOpacity("bz"), "Opacity", (v) =>
-          this.setOpacity("bz", v),
-        ),
+        zoneOpacity,
         color("bz", "fill"),
         color("bz", "edges"),
       ),
       toggle("vectors", "b vectors", showBVectors),
       toggle("axes", "Axes", showAxes),
-      ...(this.layers.kpath
-        ? [toggle("kpath", "k-path", showKPath, color("kpath"))]
-        : []),
-      ...(this.layers.kpoints
-        ? [
-            toggle("kpoints", "k-points", showKPoints, color("kpoints")),
-            el("div", "bzv-panel-row indent", [
-              toggleSwitch("Fold into BZ", foldKPoints, (on) =>
-                this.setFolded(on),
-              ),
-            ]),
-          ]
-        : []),
-      el("div", "bzv-panel-row", [
-        checkbox("Labels", showLabels, (on) => this.setLabels(on)),
-      ]),
-      ...(this.fermiSurface
-        ? this.bandControls(this.fermiSurface, fermiOptions?.clip ?? true)
-        : []),
+      kpathRow,
+      kpointsRow,
+      foldRow,
+      el("div", "bzv-panel-row", [labels]),
+      this.bandsSlot,
     ]);
 
     // The panel opens over the 3D window, just above the button (bottom right)
@@ -270,8 +340,112 @@ export class BZVisualizer {
   setVisible(layer: string, visible: boolean): this {
     const object = this.layers[layer];
     if (object) object.visible = visible;
+    this.visibility[layer] = visible;
+    this.sync(`visible:${layer}`, visible);
     this.viewer.render();
     return this;
+  }
+
+  /** The Fermi surfaces, if there is band data. */
+  get fermiSurface(): FermiSurface | undefined {
+    return this.surface;
+  }
+
+  /**
+   * Replace (or add, or remove) the Fermi surfaces in place; the zone,
+   * camera and settings stay, and the energy keeps its offset from the
+   * Fermi energy. Another basis of the same lattice is fine; for a new
+   * lattice the zone stays as it is, so build a new BZVisualizer instead.
+   */
+  setFermi(fermi?: FermiSurfaceData): this {
+    if (fermi && !sameLattice(fermi.reciprocalBasis, this.reciprocalBasis))
+      console.warn(
+        "BZVisualizer.setFermi: the lattice changed; the surfaces will not match " +
+          "the zone. Create a new BZVisualizer for a new lattice.",
+      );
+    const old = this.surface;
+    const offset = old ? old.energy - old.data.fermiEnergy : 0;
+    this.setFermiLayer(fermi, fermi && fermi.fermiEnergy + offset);
+    this.fermiControls();
+    this.viewer.render();
+    return this;
+  }
+
+  private setFermiLayer(fermi?: FermiSurfaceData, energy?: number) {
+    if (this.surface) {
+      this.viewer.content.remove(this.surface);
+      this.surface.dispose();
+      this.surface = undefined;
+      delete this.layers.fermi;
+    }
+    if (!fermi) return;
+    this.surface = new FermiSurface(fermi, this.bz, {
+      ...this.fermiOptions,
+      clip: this.clipToZone,
+      cutPlanes: this.cutPlanes,
+    }).setEnergy(energy ?? fermi.fermiEnergy);
+    this.layers.fermi = this.surface;
+    this.viewer.add(this.surface);
+    this.setVisible("fermi", this.visibility.fermi ?? true);
+    // Colours and opacity chosen for the previous data carry over
+    this.surface.meshes.forEach((_, i) => {
+      const color = this.colorChoices.get(`band:${i}:`);
+      if (color != null) this.setColor(`band:${i}`, color);
+    });
+    const opacity = this.opacityChoices.get("fermi");
+    if (opacity !== undefined) this.setOpacity("fermi", opacity);
+  }
+
+  /**
+   * Replace the k-path and k-points in place, e.g. for a new sampling
+   * density; the zone, camera and settings stay. Without Fermi data the
+   * zone comes from this data, so the lattice must not change (build a new
+   * BZVisualizer for that).
+   */
+  setSeekpath(seekpath?: SeekpathJSON): this {
+    const path = seekpath ? fromSeekpathJSON(seekpath) : undefined;
+    if (path && !sameLattice(path.reciprocalBasis, this.reciprocalBasis)) {
+      if (!this.fermiSurface)
+        throw new Error(
+          "BZVisualizer.setSeekpath: the lattice changed; create a new BZVisualizer",
+        );
+      console.warn(
+        "BZVisualizer: the seekpath and Fermi-surface reciprocal lattices differ; " +
+          "the k-path will not line up with the surfaces.",
+      );
+    }
+    this.setPathLayers(path);
+    this.viewer.render();
+    return this;
+  }
+
+  private setPathLayers(path?: ReturnType<typeof fromSeekpathJSON>) {
+    for (const name of ["kpath", "kpoints"]) {
+      const old = this.layers[name];
+      if (!old) continue;
+      this.viewer.content.remove(old);
+      disposeObject(old);
+      delete this.layers[name];
+    }
+    const color = (key: string) => this.colorChoices.get(key);
+    if (path?.kpath)
+      this.layers.kpath = kpathObject(path.kpath, path.reciprocalBasis, {
+        color: color("kpath:path"),
+        pointColor: color("kpath:points"),
+      });
+    if (path?.points?.length)
+      this.layers.kpoints = kpointsObject(path.points, path.reciprocalBasis, {
+        color: color("kpoints:"),
+      });
+    for (const name of ["kpath", "kpoints"]) {
+      const layer = this.layers[name];
+      if (!layer) continue;
+      this.viewer.add(layer);
+      this.setVisible(name, this.visibility[name] ?? true);
+    }
+    this.setFolded(this.folded);
+    this.setLabels(this.labelsShown);
+    this.sync("present", null);
   }
 
   /** Show the k-points folded into the first zone, or as given. */
@@ -281,6 +455,8 @@ export class BZVisualizer {
       kpoints.getObjectByName("cell")!.visible = !folded;
       kpoints.getObjectByName("folded")!.visible = folded;
     }
+    this.folded = folded;
+    this.sync("folded", folded);
     this.viewer.render();
     return this;
   }
@@ -290,17 +466,22 @@ export class BZVisualizer {
     this.viewer.content.traverse((o) => {
       if ("isCSS2DObject" in o) o.visible = visible;
     });
+    this.labelsShown = visible;
+    this.sync("labels", visible);
     this.viewer.render();
     return this;
   }
 
   /**
    * Recolour a layer ("bz", "kpath", "kpoints", or a band as "band:<index>").
-   * `part` narrows it to a named child, e.g. "fill" or "edges" of the zone.
+   * `part` narrows it to a named child: "fill" or "edges" of the zone,
+   * "path" or "points" of the k-path.
    */
   setColor(layer: string, color: ColorRepresentation, part = ""): this {
     for (const material of this.materials(layer, part))
       (material as Material & { color?: Color }).color?.set(color);
+    this.colorChoices.set(`${layer}:${part}`, color);
+    this.sync(`color:${layer}:${part}`, `#${new Color(color).getHexString()}`);
     this.viewer.render();
     return this;
   }
@@ -322,6 +503,8 @@ export class BZVisualizer {
         material.needsUpdate = true;
       }
     }
+    this.opacityChoices.set(layer, opacity);
+    this.sync(`opacity:${layer}`, opacity);
     this.viewer.render();
     return this;
   }
@@ -333,8 +516,14 @@ export class BZVisualizer {
   /** Move the Fermi surfaces to energy `E` (no-op without Fermi data). */
   setEnergy(E: number): this {
     this.fermiSurface?.setEnergy(E);
+    this.sync("energy", E);
     this.viewer.render();
     return this;
+  }
+
+  /** The current isosurface energy (NaN without Fermi data). */
+  get energy(): number {
+    return this.fermiSurface?.energy ?? NaN;
   }
 
   /**
@@ -342,9 +531,25 @@ export class BZVisualizer {
    * to (`[]` removes the cuts; no-op without Fermi data).
    */
   setCutPlanes(planes: readonly CutPlane[]): this {
+    this.cutPlanes = planes;
     this.fermiSurface?.setCutPlanes(planes);
     this.viewer.render();
     return this;
+  }
+
+  private onSync<T>(key: string, update: (value: T) => void) {
+    this.syncs.set(key, update as (value: never) => void);
+  }
+
+  private sync(key: string, value: unknown) {
+    this.syncs.get(key)?.(value as never);
+  }
+
+  /** Tell listeners the energy was changed from the controls. */
+  private emitEnergy() {
+    this.element.dispatchEvent(
+      new CustomEvent("energychange", { detail: { energy: this.energy } }),
+    );
   }
 
   private materials(layer: string, part: string): Material[] {
@@ -364,11 +569,21 @@ export class BZVisualizer {
     return [...found];
   }
 
-  private energyControl(
-    surface: FermiSurface,
-    [lo, hi]: [number, number],
-    step: number,
-  ): HTMLElement {
+  /** (Re)build the energy slider and the band controls for the current data. */
+  private fermiControls() {
+    const surface = this.surface;
+    if (!this.energySlot || !this.bandsSlot) return;
+    this.energySlot.hidden = this.bandsSlot.hidden = !surface;
+    this.energySlot.replaceChildren(
+      ...(surface ? this.energyControl(surface) : []),
+    );
+    this.bandsSlot.replaceChildren(
+      ...(surface ? this.bandControls(surface) : []),
+    );
+  }
+
+  private energyControl(surface: FermiSurface): HTMLElement[] {
+    const [lo, hi] = this.energyRange;
     const EF = surface.data.fermiEnergy;
     const readout = el("output");
     const show = (dE: number) => {
@@ -380,7 +595,7 @@ export class BZVisualizer {
     const slider = rangeInput(
       lo,
       hi,
-      step,
+      this.energyStep,
       surface.energy - EF,
       "Energy relative to the Fermi energy",
       (dE) => {
@@ -388,36 +603,39 @@ export class BZVisualizer {
         pending ||= requestAnimationFrame(() => {
           pending = 0;
           this.setEnergy(EF + Number(slider.value));
+          this.emitEnergy();
         });
       },
     );
     show(surface.energy - EF);
+    this.onSync("energy", (E: number) => {
+      slider.value = String(E - EF);
+      show(E - EF);
+    });
     const resetE = el("button", "bzv-button", ["E", el("sub", "", ["F"])]);
     resetE.type = "button";
     resetE.title = "Back to the Fermi energy";
     resetE.addEventListener("click", () => {
-      slider.value = "0";
-      show(0);
       this.setEnergy(EF);
+      this.emitEnergy();
     });
-    return el("div", "bzv-group bzv-energy", [
+    return [
       el("span", "", ["E−E", el("sub", "", ["F"])]),
       slider,
       readout,
       resetE,
-    ]);
+    ];
   }
 
-  private bandControls(surface: FermiSurface, clip: boolean): HTMLElement[] {
+  private bandControls(surface: FermiSurface): HTMLElement[] {
     const chips = surface.meshes.map((mesh, i) => {
       const name = el("span", "", [mesh.name]);
       name.title = "Show / hide";
-      const chip = el("span", "bzv-band", [
-        colorInput(this.getColor(`band:${i}`), "Colour", (c) =>
-          this.setColor(`band:${i}`, c),
-        ),
-        name,
-      ]);
+      const swatch = colorInput(this.getColor(`band:${i}`), "Colour", (c) =>
+        this.setColor(`band:${i}`, c),
+      );
+      this.onSync(`color:band:${i}:`, (c: string) => (swatch.value = c));
+      const chip = el("span", "bzv-band", [swatch, name]);
       name.addEventListener("click", () => {
         mesh.visible = !mesh.visible;
         chip.classList.toggle("off", !mesh.visible);
@@ -425,22 +643,22 @@ export class BZVisualizer {
       });
       return chip;
     });
+    const opacity = rangeInput(
+      0.1,
+      1,
+      0.01,
+      this.getOpacity("fermi"),
+      "Surface opacity",
+      (v) => this.setOpacity("fermi", v),
+    );
+    this.onSync("opacity:fermi", (v: number) => (opacity.value = String(v)));
     return [
       el("h4", "", ["Bands"]),
       el("div", "bzv-bands", chips),
+      el("div", "bzv-panel-row", ["Opacity", opacity]),
       el("div", "bzv-panel-row", [
-        "Opacity",
-        rangeInput(
-          0.1,
-          1,
-          0.01,
-          this.getOpacity("fermi"),
-          "Surface opacity",
-          (v) => this.setOpacity("fermi", v),
-        ),
-      ]),
-      el("div", "bzv-panel-row", [
-        checkbox("Clip to zone", clip, (on) => {
+        checkbox("Clip to zone", this.clipToZone, (on) => {
+          this.clipToZone = on;
           surface.setClipping(on);
           this.viewer.render();
         }),

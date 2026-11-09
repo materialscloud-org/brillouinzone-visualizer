@@ -10,7 +10,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    "jsx": "react-jsx"
   },
-  "include": ["src", "demo", "tests"]
+  "include": ["src", "react", "demo", "tests"]
 }

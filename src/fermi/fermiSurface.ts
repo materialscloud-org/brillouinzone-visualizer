@@ -18,6 +18,7 @@ import type {
   BrillouinZone,
   CutPlane,
   FermiSurfaceData,
+  Matrix,
   VolumetricData,
 } from "../types";
 
@@ -44,17 +45,20 @@ export interface FermiSurfaceOptions {
   cutPlanes?: readonly CutPlane[];
   /** Energies are cached after rounding to this many decimals. */
   cachePrecision?: number;
+  /** Energies kept in the cache; the least recently shown are dropped (default 16). */
+  maxCacheSize?: number;
 }
 
 /**
  * The cubic marching-cubes field covering the zone, sampled straight from
  * the periodic band grid (no resampling), and the matrix that maps the
- * field's local [-1, 1]³ space to Cartesian k.
+ * field's local [-1, 1]³ space to Cartesian k. The grid is laid out along
+ * its own basis, which may differ from the one the zone was built from.
  */
-function zoneSampling(bz: BrillouinZone, grid: VolumetricData) {
+function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
   const [D, H, W] = grid.shape;
   const n = [W, H, D];
-  const [b1, b2, b3] = basisVectors(bz.reciprocalBasis);
+  const [b1, b2, b3] = basisVectors(basis);
   const origin = new Vector3(...grid.origin);
   const toFractional = new Matrix3()
     .setFromMatrix4(new Matrix4().makeBasis(b1, b2, b3))
@@ -126,6 +130,7 @@ export class FermiSurface extends Group {
   private readonly ranges: [number, number][];
   private readonly cache = new Map<string, BufferGeometry[]>();
   private readonly cachePrecision: number;
+  private readonly maxCacheSize: number;
   private readonly zonePlanes: Plane[];
   private clipToZone: boolean;
   private cutPlanes: Plane[] = [];
@@ -141,12 +146,14 @@ export class FermiSurface extends Group {
       clip = true,
       cutPlanes = [],
       cachePrecision = 3,
+      maxCacheSize = 128,
     }: FermiSurfaceOptions = {},
   ) {
     super();
     this.name = "fermiSurface";
     this.cachePrecision = cachePrecision;
-    this.sampling = zoneSampling(bz, data.bands[0]);
+    this.maxCacheSize = Math.max(1, maxCacheSize); // never drop the one on screen
+    this.sampling = zoneSampling(bz, data.bands[0], data.reciprocalBasis);
     this.fields = data.bands.map(() => undefined);
     this.ranges = data.bands.map((b) => {
       let min = Infinity;
@@ -230,9 +237,15 @@ export class FermiSurface extends Group {
   setEnergy(E: number): this {
     const key = E.toFixed(this.cachePrecision);
     let geometries = this.cache.get(key);
-    if (!geometries) {
+    if (!geometries)
       geometries = this.data.bands.map((_, i) => this.march(i, Number(key)));
-      this.cache.set(key, geometries);
+    // Re-insert so the Map's order is least recently shown first
+    this.cache.delete(key);
+    this.cache.set(key, geometries);
+    for (const [old, dropped] of this.cache) {
+      if (this.cache.size <= this.maxCacheSize) break;
+      this.cache.delete(old);
+      dropped.forEach((g) => g.dispose());
     }
     this.meshes.forEach((mesh, i) => (mesh.geometry = geometries[i]));
     this.energy = Number(key);

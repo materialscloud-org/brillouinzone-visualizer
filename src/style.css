@@ -38,6 +38,11 @@
   box-sizing: border-box;
 }
 
+/* Controls for absent layers are hidden; win over the display rules below */
+.bzv [hidden] {
+  display: none !important;
+}
+
 /* --- 3D window ------------------------------------------------------------ */
 
 .bzv-window {

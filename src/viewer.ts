@@ -23,6 +23,14 @@ export interface ViewerOptions {
   clickToInteract?: boolean;
 }
 
+/** Where the camera is and what it looks at, to save and restore a view. */
+export interface CameraState {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+  zoom: number;
+}
+
 /** View direction and up vector for the standard camera buttons. */
 export const VIEWS = {
   x: { direction: new Vector3(1, 0, 0), up: new Vector3(0, 0, 1) },
@@ -124,6 +132,26 @@ export class Viewer {
   /** Remove everything added with `add`. */
   clear(): this {
     this.content.clear();
+    this.render();
+    return this;
+  }
+
+  getCameraState(): CameraState {
+    return {
+      position: this.camera.position.toArray(),
+      target: this.controls.target.toArray(),
+      up: this.camera.up.toArray(),
+      zoom: this.camera.zoom,
+    };
+  }
+
+  setCameraState({ position, target, up, zoom }: CameraState): this {
+    this.camera.position.fromArray(position);
+    this.controls.target.fromArray(target);
+    this.camera.up.fromArray(up);
+    this.camera.lookAt(this.controls.target);
+    this.camera.zoom = zoom;
+    this.camera.updateProjectionMatrix();
     this.render();
     return this;
   }

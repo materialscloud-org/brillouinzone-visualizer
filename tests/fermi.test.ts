@@ -100,6 +100,62 @@ describe("FermiSurface", () => {
     });
   }
 
+  it("drops the least recently shown energy when the cache is full", () => {
+    const surface = new FermiSurface(data, bz, { maxCacheSize: 2 });
+    const first = surface.setEnergy(-1).meshes[0].geometry;
+    const second = surface.setEnergy(0).meshes[0].geometry;
+    let firstDisposed = false;
+    let secondDisposed = false;
+    first.addEventListener("dispose", () => (firstDisposed = true));
+    second.addEventListener("dispose", () => (secondDisposed = true));
+    surface.setEnergy(-1); // shown again: now the most recent
+    surface.setEnergy(1); // full: drops 0
+    expect(firstDisposed).toBe(false);
+    expect(secondDisposed).toBe(true);
+  });
+
+  it("places band data given in another basis of the same lattice correctly", () => {
+    // The same band, written with b1 and b2 swapped
+    const swappedRows = [rows[1], rows[0], rows[2]];
+    const swapped: Matrix = {
+      rows: 3,
+      cols: 3,
+      data: Float64Array.from(swappedRows.flat()),
+    };
+    const lopsided = (f: number[]) =>
+      -Math.cos(2 * Math.PI * f[0]) - 0.5 * Math.cos(2 * Math.PI * f[1]);
+    const values = new Float64Array(n * n * n);
+    for (let k = 0; k < n; k++)
+      for (let j = 0; j < n; j++)
+        for (let i = 0; i < n; i++)
+          values[(k * n + j) * n + i] = lopsided([j / n, i / n, k / n]);
+    const other: FermiSurfaceData = {
+      reciprocalBasis: swapped,
+      fermiEnergy: 0,
+      bands: [
+        {
+          data: values,
+          shape: [n, n, n],
+          channels: 1,
+          basis: swapped,
+          origin: [0, 0, 0],
+        },
+      ],
+    };
+    // The zone comes from the original basis
+    const mesh = new FermiSurface(other, bz).setEnergy(0.3).meshes[0];
+    const pos = mesh.geometry.getAttribute("position");
+    expect(pos.count).toBeGreaterThan(100);
+    const v = new Vector3();
+    let maxError = 0;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix);
+      const f = v.clone().applyMatrix3(toFractional).toArray();
+      maxError = Math.max(maxError, Math.abs(lopsided(f) - 0.3));
+    }
+    expect(maxError).toBeLessThan(0.05);
+  });
+
   it("cut planes remove the side the normal points to, on top of the zone", () => {
     const surface = new FermiSurface(data, bz, {
       cutPlanes: [{ point: [0, 0, 0.5], normal: [0, 0, 2] }],

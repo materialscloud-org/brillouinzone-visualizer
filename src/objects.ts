@@ -10,6 +10,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  type Object3D,
   SphereGeometry,
   Vector3,
 } from "three";
@@ -211,17 +212,19 @@ export function kpathObject(
       ...cartesian(kpath.points[a]).toArray(),
       ...cartesian(kpath.points[b]).toArray(),
     ]);
-    group.add(fatLines(segmentPoints, color, width));
+    const lines = fatLines(segmentPoints, color, width);
+    lines.name = "path";
+    group.add(lines);
   }
 
   const named = Object.entries(kpath.points);
-  group.add(
-    sphereInstances(
-      named.map(([, p]) => cartesian(p)),
-      pointRadius * scale,
-      pointColor,
-    ),
+  const points = sphereInstances(
+    named.map(([, p]) => cartesian(p)),
+    pointRadius * scale,
+    pointColor,
   );
+  points.name = "points";
+  group.add(points);
   if (labels)
     for (const [name, p] of named)
       group.add(label(prettifyLabel(name), cartesian(p), "#7a2e05"));
@@ -305,4 +308,15 @@ export function axesObject(
     );
   }
   return group;
+}
+
+/** Free an object's GPU resources and remove its label elements. */
+export function disposeObject(object: Object3D) {
+  object.traverse((o) => {
+    if (o instanceof CSS2DObject) o.element.remove();
+    const { geometry, material } = o as Mesh;
+    geometry?.dispose();
+    for (const m of Array.isArray(material) ? material : [material])
+      m?.dispose();
+  });
 }

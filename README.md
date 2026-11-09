@@ -42,32 +42,38 @@ vis.dispose(); // when done
 
 ## Usage (TypeScript + React)
 
+A ready-made component is in `bz-visualizer/react` (React 18 or later):
+
 ```tsx
-import { useEffect, useRef } from "react";
-import {
-  BZVisualizer,
-  type BZVisualizerOptions,
-  type SeekpathJSON,
-} from "bz-visualizer";
+import { useState } from "react";
+import { BZVisualizer } from "bz-visualizer/react";
 import "bz-visualizer/style.css";
 
-export function BZVis({
-  data,
-  options,
-}: {
-  data: SeekpathJSON;
-  options?: BZVisualizerOptions;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const vis = new BZVisualizer(ref.current!, data, options);
-    return () => vis.dispose();
-  }, [data, options]); // memoise these, or every new object rebuilds the view
-
-  return <div ref={ref} style={{ height: 500 }} />;
+export function FermiView({ seekpath, fermi }) {
+  const [energy, setEnergy] = useState(fermi.fermiEnergy);
+  return (
+    <BZVisualizer
+      seekpath={seekpath}
+      fermi={fermi}
+      energy={energy}
+      onEnergyChange={setEnergy}
+      colors={bzTheme}
+      style={{ height: 500 }}
+    />
+  );
 }
 ```
+
+- New `seekpath` or `fermi` data on the same lattice (e.g. from a "k-points
+  per line" slider) is swapped into the live widget; the camera and
+  settings stay. A new lattice, or a change to an option that shapes the
+  widget (`controls`, `energyRange`, `fermiOptions`, …), rebuilds it.
+- `energy`, `cutPlanes`, `colors`, `showAxes`, `showBVectors`, `showKPath`,
+  `showKPoints`, `foldKPoints` and `showLabels` update the live widget, and
+  the settings panel follows them.
+- Data is compared by identity, so keep it in state or `useMemo`; options
+  are compared by value.
+- A `ref` gives the underlying `BZVisualizer`, for everything else.
 
 ## Input
 
@@ -86,7 +92,9 @@ export function BZVis({
 `showLabels`, `controls` (set to `false` to hide the bar), and for Fermi
 data `energy`, `energyRange` and `fermiOptions`. At runtime: `setVisible`,
 `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
-`setCutPlanes`.
+`setCutPlanes`, and `setSeekpath` / `setFermi` to replace the k-points or
+band data in place (same lattice; settings and camera stay, the energy keeps
+its offset from E_F).
 
 To cut the Fermi surfaces open, pass planes as a point and a normal in
 Cartesian k; the side the normal points to is removed:
@@ -109,6 +117,24 @@ energy slider, and a Settings panel with the layer toggles and colours.
 `.bzv`, e.g. `--bzv-accent`, `--bzv-border`, `--bzv-radius`,
 `--bzv-control-background` and `--bzv-font` (all are listed at the top of
 `src/style.css`).
+
+The 3D colours are an option, so one theme object can be shared across
+apps (any CSS colour string or hex number; anything left out keeps its
+default):
+
+```ts
+import type { BZColors } from "bz-visualizer";
+
+export const bzTheme: BZColors = {
+  zone: "#9ab8d8",
+  zoneEdges: "#2b3a4a",
+  kpath: "#e8590c",
+  highSymmetryPoints: "#e8590c",
+  kpoints: "#8a4b2a",
+};
+
+new BZVisualizer(el, seekpathJson, { colors: bzTheme });
+```
 
 ## Development
 

@@ -6,13 +6,15 @@ export default defineConfig({
   optimizeDeps: { entries: ["index.html"] },
   build: {
     lib: {
-      entry: resolve(import.meta.dirname, "src/index.ts"),
-      fileName: "index",
+      entry: {
+        index: resolve(import.meta.dirname, "src/index.ts"),
+        react: resolve(import.meta.dirname, "react/index.ts"),
+      },
       formats: ["es"],
     },
     rollupOptions: {
-      // three is a peer dependency; keep it (and its addons) out of the bundle
-      external: [/^three($|\/)/],
+      // Peer dependencies: three (and its addons) and React stay out of the bundle
+      external: [/^three($|\/)/, /^react($|\/)/, /^react-dom($|\/)/],
     },
   },
   test: {
