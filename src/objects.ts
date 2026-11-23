@@ -81,9 +81,9 @@ export interface BZObjectOptions {
 export function brillouinZoneObject(
   bz: BrillouinZone,
   {
-    color = 0x9ab8d8,
-    opacity = 0.18,
-    edgeColor = 0x2b3a4a,
+    color = 0xd53e4f,
+    opacity = 0.15,
+    edgeColor = 0x333333,
     edgeWidth = 1.5,
   }: BZObjectOptions = {},
 ): Group {
@@ -194,9 +194,9 @@ export function kpathObject(
   kpath: KPath,
   reciprocalBasis: Matrix,
   {
-    color = 0xe8590c,
+    color = 0x045add,
     width = 3,
-    pointColor = 0xe8590c,
+    pointColor = 0x3288bd,
     pointRadius = 0.02,
     labels = true,
   }: KPathObjectOptions = {},
@@ -227,7 +227,7 @@ export function kpathObject(
   group.add(points);
   if (labels)
     for (const [name, p] of named)
-      group.add(label(prettifyLabel(name), cartesian(p), "#7a2e05"));
+      group.add(label(prettifyLabel(name), cartesian(p), "#555555"));
 
   return group;
 }
@@ -246,7 +246,7 @@ export interface KPointsObjectOptions {
 export function kpointsObject(
   points: readonly Vec3[],
   reciprocalBasis: Matrix,
-  { color = 0x8a4b2a, radius }: KPointsObjectOptions = {},
+  { color = 0x883232, radius }: KPointsObjectOptions = {},
 ): Group {
   const scale = longestVector(reciprocalBasis);
   // Shrink the spheres for dense sets: ~ a quarter of the typical spacing

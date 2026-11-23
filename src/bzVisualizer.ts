@@ -177,7 +177,7 @@ export class BZVisualizer {
     // --- scene -------------------------------------------------------------
     const longest = Math.max(...basisVectors(basis).map((b) => b.length()));
     this.layers.bz = brillouinZoneObject(this.bz, {
-      opacity: fermi ? 0.08 : 0.18,
+      opacity: fermi ? 0.08 : 0.15,
     });
     this.layers.vectors = reciprocalVectorsObject(basis);
     this.layers.axes = axesObject(longest * 1.4);

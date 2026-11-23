@@ -8,8 +8,8 @@ import {
 
 import mc3d10 from "./data/mc3d-10.json";
 import mc3d10016 from "./data/mc3d-10016.json";
-import file2Url from "./data/file2.bxsf?url";
-import hexUrl from "./data/example.bxsf?url";
+import highResUrl from "./data/highresolution_example.bxsf?url";
+import SimpleExampleURl from "./data/simple_example.bxsf?url";
 
 interface Example {
   label: string;
@@ -48,7 +48,7 @@ const EXAMPLES: Example[] = [
     label: "file2.bxsf: Fermi surface (fcc) + k-path",
     note: "k-path borrowed from mc3d-10016 (same fcc setting).",
     load: async () => {
-      const fermi = await fetchBXSF(file2Url);
+      const fermi = await fetchBXSF(highResUrl);
       // No seekpath output exists for this file; its fcc cell matches
       // mc3d-10016's setting, so that fractional path is reused on its lattice.
       const [b1, b2, b3] = [0, 3, 6].map((i) => [
@@ -61,7 +61,7 @@ const EXAMPLES: Example[] = [
     label: "example.bxsf: Fermi surface (hexagonal)",
     note: "Band 31 only just reaches E_F (by 0.3 meV), so this starts at E_F + 0.3 eV.",
     load: async () => {
-      const fermi = await fetchBXSF(hexUrl);
+      const fermi = await fetchBXSF(SimpleExampleURl);
       return [undefined, { fermi, energy: fermi.fermiEnergy + 0.3 }];
     },
   },

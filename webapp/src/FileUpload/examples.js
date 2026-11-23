@@ -14,11 +14,11 @@ export const examples = [
   {
     family: "BXSF (Fermi surfaces)",
     label: "fcc metal, 8 bands (13 MB)",
-    fileName: "file2.bxsf",
+    fileName: "highresolution_example.bxsf",
   },
   {
     family: "BXSF (Fermi surfaces)",
     label: "hexagonal, 5 bands (8 MB)",
-    fileName: "example.bxsf",
+    fileName: "simple_example.bxsf",
   },
 ];
