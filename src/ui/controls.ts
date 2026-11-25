@@ -15,6 +15,8 @@ export interface ControlsOptions {
   /** Energy slider range relative to the Fermi energy (default [-1, 1]). */
   energyRange?: [number, number];
   energyStep?: number;
+  /** The Settings button and panel (default true). */
+  settings?: boolean;
 }
 
 /**
@@ -29,7 +31,11 @@ export interface ControlsOptions {
 export function buildControls(
   vis: BZVisualizer,
   bar: HTMLElement,
-  { energyRange = [-1, 1], energyStep = 0.01 }: ControlsOptions = {},
+  {
+    energyRange = [-1, 1],
+    energyStep = 0.01,
+    settings = true,
+  }: ControlsOptions = {},
 ): () => void {
   // Each control whose value follows the widget's state registers an update
   const updates: (() => void)[] = [];
@@ -158,6 +164,7 @@ export function buildControls(
   settingsButton.classList.add("bzv-settings-button");
   settingsButton.append(gearIcon());
   settingsButton.setAttribute("aria-expanded", "false");
+  settingsButton.hidden = !settings;
   bar.append(
     el("div", "bzv-row", [
       el("div", "bzv-group", [

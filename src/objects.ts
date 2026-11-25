@@ -28,12 +28,12 @@ import type { BrillouinZone, KPath, Matrix, Vec3 } from "./types";
 export function label(
   html: string,
   position: Vector3,
-  color = "#333",
+  color?: string, // unset: the stylesheet's --bzv-label-color
 ): CSS2DObject {
   const div = document.createElement("div");
   div.innerHTML = html;
   div.className = "bzv-label";
-  div.style.color = color;
+  if (color) div.style.color = color;
   const obj = new CSS2DObject(div);
   obj.position.copy(position);
   // Sit just above-right of the anchor instead of centred on it
@@ -227,7 +227,7 @@ export function kpathObject(
   group.add(points);
   if (labels)
     for (const [name, p] of named)
-      group.add(label(prettifyLabel(name), cartesian(p), "#555555"));
+      group.add(label(prettifyLabel(name), cartesian(p)));
 
   return group;
 }
@@ -300,11 +300,7 @@ export function axesObject(
       ),
     );
     group.add(
-      label(
-        `<i>${name}</i>`,
-        dir.clone().multiplyScalar(length * 1.05),
-        "#555",
-      ),
+      label(`<i>${name}</i>`, dir.clone().multiplyScalar(length * 1.05)),
     );
   }
   return group;

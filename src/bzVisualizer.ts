@@ -34,10 +34,21 @@ export interface BZColors {
   kpath?: ColorRepresentation;
   highSymmetryPoints?: ColorRepresentation;
   kpoints?: ColorRepresentation;
+  /** k-point and axis labels (sets `--bzv-label-color`; b1–b3 keep their arrow colours). */
+  labels?: ColorRepresentation;
+}
+
+/** Line widths in pixels; anything left out keeps its default. */
+export interface BZWidths {
+  kpath?: number;
+  zoneEdges?: number;
 }
 
 // Where each colour goes: [layer, part] for `setColor`
-const COLOR_TARGETS: Record<keyof BZColors, [string, string]> = {
+const COLOR_TARGETS: Record<
+  Exclude<keyof BZColors, "labels">,
+  [string, string]
+> = {
   zone: ["bz", "fill"],
   zoneEdges: ["bz", "edges"],
   kpath: ["kpath", "path"],
@@ -48,6 +59,8 @@ const COLOR_TARGETS: Record<keyof BZColors, [string, string]> = {
 /** The options a live widget can change with `setOptions`; anything left out stays. */
 export interface BZLiveOptions {
   showAxes?: boolean;
+  /** Length of the x, y, z axes, relative to the longest reciprocal vector (default 1.15). */
+  axisLength?: number;
   showBVectors?: boolean;
   showKPath?: boolean;
   showKPoints?: boolean;
@@ -56,17 +69,21 @@ export interface BZLiveOptions {
   foldKPoints?: boolean;
   showLabels?: boolean;
   colors?: BZColors;
+  widths?: BZWidths;
   energy?: number;
   cutPlanes?: readonly CutPlane[];
 }
 
 export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
   /**
-   * Show the built-in control bar and settings panel (default true). Set to
-   * false to build your own from the getters, setters and "statechange".
+   * Show the built-in controls (default true); `{ settings: false }` keeps
+   * the camera buttons and energy slider but drops the Settings panel. Set
+   * to false to build your own from the getters, setters and "statechange".
    */
-  controls?: boolean;
+  controls?: boolean | { settings?: boolean };
   showAxes?: boolean;
+  /** Length of the x, y, z axes, relative to the longest reciprocal vector (default 1.15). */
+  axisLength?: number;
   showBVectors?: boolean;
   showKPath?: boolean;
   /** Show the explicit k-points (path sampling or mesh). */
@@ -76,8 +93,10 @@ export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
   /** Show the k-points moved into the first zone instead of as given. */
   foldKPoints?: boolean;
   showLabels?: boolean;
-  /** Initial colours; change them later with `setColor`. */
+  /** Initial colours; change them later with `setOptions` or `setColor`. */
   colors?: BZColors;
+  /** Initial line widths; change them later with `setOptions`. */
+  widths?: BZWidths;
   /** Band grids (e.g. from `parseBXSF`); adds Fermi surfaces to the zone. */
   fermi?: FermiSurfaceData;
   fermiOptions?: FermiSurfaceOptions;
@@ -106,6 +125,7 @@ export class BZVisualizer {
   private readonly visibility: Record<string, boolean> = {};
   private readonly colorChoices = new Map<string, ColorRepresentation>();
   private readonly opacityChoices = new Map<string, number>();
+  private readonly widthChoices: BZWidths = {};
   private foldedState = false;
   private labelsState = true;
   private surface?: FermiSurface;
@@ -124,6 +144,7 @@ export class BZVisualizer {
       energyRange,
       energyStep,
       showAxes = !fermi,
+      axisLength = 1.15,
       showBVectors = !fermi,
       showKPath = true,
       showPathpoints = false,
@@ -131,6 +152,7 @@ export class BZVisualizer {
       foldKPoints = false,
       showLabels = true,
       colors = {},
+      widths = {},
       ...viewerOptions
     }: BZVisualizerOptions = {},
   ) {
@@ -172,7 +194,7 @@ export class BZVisualizer {
     windowEl.addEventListener("interactivechange", syncNote);
     syncNote();
     // The controls float over the 3D window
-    windowEl.append(note, ...(controls ? [controlBar] : []));
+    windowEl.append(note, ...(controls !== false ? [controlBar] : []));
 
     // --- scene -------------------------------------------------------------
     const longest = Math.max(...basisVectors(basis).map((b) => b.length()));
@@ -180,25 +202,32 @@ export class BZVisualizer {
       opacity: fermi ? 0.08 : 0.15,
     });
     this.layers.vectors = reciprocalVectorsObject(basis);
-    this.layers.axes = axesObject(longest * 1.4);
+    // Unit length here; `axisLength` scales it
+    this.layers.axes = axesObject(longest);
     for (const layer of Object.values(this.layers))
       if (layer) this.viewer.add(layer);
     this.setPathLayers(path);
     this.setFermiLayer(fermi, energy);
     this.setOptions({
       showAxes,
+      axisLength,
       showBVectors,
       showKPath,
       showKPoints,
       foldKPoints,
       showLabels,
       colors,
+      widths,
     });
     this.viewer.fit();
 
-    if (controls)
+    if (controls !== false)
       this.cleanups.push(
-        buildControls(this, controlBar, { energyRange, energyStep }),
+        buildControls(this, controlBar, {
+          energyRange,
+          energyStep,
+          settings: controls === true || controls.settings !== false,
+        }),
       );
   }
 
@@ -208,7 +237,9 @@ export class BZVisualizer {
       showKPoints = options.showPathpoints,
       foldKPoints,
       showLabels,
+      axisLength,
       colors = {},
+      widths = {},
       energy,
       cutPlanes,
     } = options;
@@ -220,12 +251,24 @@ export class BZVisualizer {
     };
     for (const [layer, on] of Object.entries(layers))
       if (on !== undefined) this.setVisible(layer, on);
+    if (axisLength !== undefined) {
+      this.layers.axes!.scale.setScalar(axisLength);
+      this.changed();
+    }
     if (foldKPoints !== undefined) this.setFolded(foldKPoints);
     if (showLabels !== undefined) this.setLabels(showLabels);
     for (const [key, color] of Object.entries(colors)) {
-      const [layer, part] = COLOR_TARGETS[key as keyof BZColors] ?? [];
+      const [layer, part] =
+        COLOR_TARGETS[key as keyof typeof COLOR_TARGETS] ?? [];
       if (layer && color != null) this.setColor(layer, color, part);
     }
+    if (colors.labels != null)
+      this.element.style.setProperty(
+        "--bzv-label-color",
+        `#${new Color(colors.labels).getHexString()}`,
+      );
+    Object.assign(this.widthChoices, widths);
+    this.applyWidths();
     if (energy !== undefined) this.setEnergy(energy);
     if (cutPlanes) this.setCutPlanes(cutPlanes);
     return this;
@@ -336,6 +379,7 @@ export class BZVisualizer {
         color: color("kpath:path"),
         pointColor: color("kpath:points"),
       });
+    this.applyWidths();
     if (path?.points?.length)
       this.layers.kpoints = kpointsObject(path.points, path.reciprocalBasis, {
         color: color("kpoints:"),
@@ -445,6 +489,18 @@ export class BZVisualizer {
     this.cutPlanes = planes;
     this.fermiSurface?.setCutPlanes(planes);
     return this.changed();
+  }
+
+  // Fat-line widths are a material setting, so they apply to replaced layers too
+  private applyWidths() {
+    const { kpath, zoneEdges } = this.widthChoices;
+    const set = (layer: string, part: string, width?: number) => {
+      if (width === undefined) return;
+      for (const m of this.materials(layer, part))
+        (m as Material & { linewidth: number }).linewidth = width;
+    };
+    set("kpath", "path", kpath);
+    set("bz", "edges", zoneEdges);
   }
 
   /** Redraw, and tell the controls (and anyone listening) that the state changed. */

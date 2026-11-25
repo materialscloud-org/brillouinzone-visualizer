@@ -78,11 +78,9 @@
 
 .bzv-label {
   font-size: 15px;
-  /* For visibility */
-  text-shadow:
-    0 0 2px #fff,
-    0 0 2px #fff,
-    0 0 3px #fff;
+  color: var(--bzv-label-color, #555);
+  /* A glow keeps labels readable over the scene */
+  text-shadow: var(--bzv-label-glow, 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff);
 }
 
 /* --- settings panel (opens under the controls, on the right) ------------ */

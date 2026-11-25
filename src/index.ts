@@ -3,6 +3,7 @@ export {
   BZVisualizer,
   createBZVisualizer,
   type BZColors,
+  type BZWidths,
   type BZLiveOptions,
   type BZVisualizerOptions,
 } from "./bzVisualizer";

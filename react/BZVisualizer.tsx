@@ -47,7 +47,7 @@ function zoneKey(seekpath?: SeekpathJSON, fermi?: FermiSurfaceData) {
  *   A new lattice, or a change to an option that shapes the widget
  *   (`controls`, `energyRange`, `fermiOptions`, …), rebuilds it; the camera
  *   is kept if the lattice is the same.
- * - `energy`, `cutPlanes`, `colors` and the `show*`/`foldKPoints` flags are
+ * - `energy`, `cutPlanes`, `colors`, `widths` and the `show*`/`foldKPoints` flags are
  *   applied to the live widget, and the settings panel follows them.
  * - The ref gives the widget itself, for anything else (`setOpacity`,
  *   `viewer.getCameraState()`, …).
@@ -69,6 +69,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
     const {
       energy,
       showAxes,
+      axisLength,
       showBVectors,
       showKPath,
       showKPoints,
@@ -76,6 +77,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
       foldKPoints,
       showLabels,
       colors,
+      widths,
       ...shape
     } = options;
     const zone = zoneKey(seekpath, fermi);
@@ -83,6 +85,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
     // The live options; a removed cutPlanes prop removes the cuts
     const liveKey = JSON.stringify({
       showAxes,
+      axisLength,
       showBVectors,
       showKPath,
       showKPoints,
@@ -90,6 +93,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
       foldKPoints,
       showLabels,
       colors,
+      widths,
       cutPlanes: cutPlanes ?? [],
     });
 

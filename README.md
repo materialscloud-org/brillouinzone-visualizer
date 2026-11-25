@@ -68,7 +68,7 @@ export function FermiView({ seekpath, fermi }) {
   per line" slider) is swapped into the live widget; the camera and
   settings stay. A new lattice, or a change to an option that shapes the
   widget (`controls`, `energyRange`, `fermiOptions`, …), rebuilds it.
-- `energy`, `cutPlanes`, `colors`, `showAxes`, `showBVectors`, `showKPath`,
+- `energy`, `cutPlanes`, `colors`, `widths`, `axisLength`, `showAxes`, `showBVectors`, `showKPath`,
   `showKPoints`, `foldKPoints` and `showLabels` update the live widget, and
   the settings panel follows them.
 - Data is compared by identity, so keep it in state or `useMemo`; options
@@ -88,12 +88,14 @@ export function FermiView({ seekpath, fermi }) {
 
 ## Options
 
-`showAxes`, `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
-`showLabels`, `controls` (set to `false` to hide the controls), and for Fermi
-data `energy`, `energyRange` and `fermiOptions`. At runtime: `setOptions`
-(the `show*` flags, `foldKPoints`, `colors`, `energy`, `cutPlanes`),
-`setVisible`,
-`setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
+`showAxes`, `axisLength` (relative to the longest reciprocal vector,
+default 1.15), `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
+`showLabels`, `colors`, `widths` (`{ kpath, zoneEdges }` in pixels),
+`controls` (`false` hides them all, `{ settings: false }` only the
+Settings panel), and for Fermi data `energy`, `energyRange` and
+`fermiOptions`. At runtime: `setOptions` (the `show*` flags, `axisLength`,
+`foldKPoints`, `colors`, `widths`, `energy`, `cutPlanes`; choices are kept
+when the data is swapped), `setVisible`, `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
 `setCutPlanes`, and `setSeekpath` / `setFermi` to replace the k-points or
 band data in place (same lattice; settings and camera stay, the energy keeps
 its offset from E_F).
@@ -136,7 +138,8 @@ vis.element.addEventListener("statechange", () => {
 `style.css` is a plain stylesheet. Theme it by overriding variables on
 `.bzv`, e.g. `--bzv-accent`, `--bzv-border`, `--bzv-radius`,
 `--bzv-control-background` and `--bzv-font` (all are listed at the top of
-`src/style.css`).
+`src/style.css`). Labels use `--bzv-label-color` and `--bzv-label-glow`
+(a `text-shadow`); the b1–b3 labels keep their arrow colours.
 
 The 3D colours are an option, so one theme object can be shared across
 apps (any CSS colour string or hex number; anything left out keeps its
@@ -151,6 +154,7 @@ export const bzTheme: BZColors = {
   kpath: "#e8590c",
   highSymmetryPoints: "#e8590c",
   kpoints: "#8a4b2a",
+  labels: "#000", // sets --bzv-label-color
 };
 
 new BZVisualizer(el, seekpathJson, { colors: bzTheme });
