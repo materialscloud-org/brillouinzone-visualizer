@@ -10,6 +10,7 @@ import mc3d10 from "./data/mc3d-10.json";
 import mc3d10016 from "./data/mc3d-10016.json";
 import highResUrl from "./data/highresolution_example.bxsf?url";
 import SimpleExampleURl from "./data/simple_example.bxsf?url";
+import wjlUrl from "./data/wjl.bxsf?url";
 
 interface Example {
   label: string;
@@ -45,7 +46,7 @@ const EXAMPLES: Example[] = [
     ],
   },
   {
-    label: "file2.bxsf: Fermi surface (fcc) + k-path",
+    label: "highresolution_example.bxsf: Fermi surface (fcc) + k-path",
     note: "k-path borrowed from mc3d-10016 (same fcc setting).",
     load: async () => {
       const fermi = await fetchBXSF(highResUrl);
@@ -58,12 +59,17 @@ const EXAMPLES: Example[] = [
     },
   },
   {
-    label: "example.bxsf: Fermi surface (hexagonal)",
+    label: "simple_example.bxsf: Fermi surface (hexagonal)",
     note: "Band 31 only just reaches E_F (by 0.3 meV), so this starts at E_F + 0.3 eV.",
     load: async () => {
       const fermi = await fetchBXSF(SimpleExampleURl);
       return [undefined, { fermi, energy: fermi.fermiEnergy + 0.3 }];
     },
+  },
+  {
+    label: "wjl.bxsf: Fermi surface (WannierIO.jl, 35 bands, 224 MB)",
+    note: "Large file: reading it takes a few seconds.",
+    load: async () => [undefined, { fermi: await fetchBXSF(wjlUrl) }],
   },
 ];
 

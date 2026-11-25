@@ -9,7 +9,7 @@ import type { FermiSurfaceData, Matrix } from "../src/types";
 const BXSF_DIR = "demo/data";
 
 describe("parseBXSF", () => {
-  const text = readFileSync(`${BXSF_DIR}/example.bxsf`, "utf8");
+  const text = readFileSync(`${BXSF_DIR}/simple_example.bxsf`, "utf8");
   const data = parseBXSF(text);
 
   it("reads the header", () => {
@@ -35,6 +35,44 @@ describe("parseBXSF", () => {
       expect(data.bands[0].data[k * H * W]).toBe(firstBand[k]);
     // The dropped endpoint repeats the first point
     expect(firstBand[40]).toBe(firstBand[0]);
+  });
+
+  it("reads every value exactly as Number() would", () => {
+    // Reference: split each band into tokens and convert with Number()
+    const [D, H, W] = data.bands[0].shape;
+    const [n1, n2, n3] = [W + 1, H + 1, D + 1];
+    const blocks = text.split("BAND:").slice(1);
+    blocks.forEach((block, b) => {
+      const tokens = block.trim().split(/\s+/);
+      const band = data.bands[b];
+      expect(band.field).toBe(`Band ${tokens[0]}`);
+      for (let i = 0; i < W; i++)
+        for (let j = 0; j < H; j++)
+          for (let k = 0; k < D; k++) {
+            const expected = Number(tokens[1 + (i * n2 + j) * n3 + k]);
+            const got = band.data[(k * H + j) * W + i];
+            if (got !== expected) expect(got).toBe(expected); // fail with values
+          }
+    });
+    expect(n1 * n2 * n3).toBeGreaterThan(0);
+  });
+
+  it("rejects a non-number value", () => {
+    const at = text.indexOf("BAND:") + 40;
+    const broken = text.slice(0, at) + " oops " + text.slice(at);
+    expect(() => parseBXSF(broken)).toThrow(/not a number/);
+  });
+
+  it("rejects a header without the band count", () => {
+    const broken = text.replace(/(BANDGRID_3D_BANDS\s*\n)\s*5\s*\n/, "$1");
+    expect(broken).not.toBe(text);
+    expect(() => parseBXSF(broken)).toThrow(/band count/);
+  });
+
+  it("rejects a truncated file", () => {
+    expect(() => parseBXSF(text.slice(0, text.length / 2))).toThrow(
+      /truncated|expected/,
+    );
   });
 });
 
