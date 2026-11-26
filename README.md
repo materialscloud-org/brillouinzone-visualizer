@@ -64,16 +64,24 @@ export function FermiView({ seekpath, fermi }) {
 }
 ```
 
+- The wrapper keeps no state: the widget is the one source of truth, and
+  props are pushed into it.
+- The live options (`LIVE_OPTIONS`: `energy`, `cutPlanes`, `colors`,
+  `widths`, `perspective`, `axisLength`, the `show*` flags, `foldKPoints`)
+  update the widget in place, each only when its own value changes. A
+  choice made in the Settings panel therefore stays until you change that
+  prop. Any other option (`controls`, `energyRange`, `fermiOptions`, …)
+  rebuilds the widget from the props; the camera stays if the lattice does.
 - New `seekpath` or `fermi` data on the same lattice (e.g. from a "k-points
-  per line" slider) is swapped into the live widget; the camera and
-  settings stay. A new lattice, or a change to an option that shapes the
-  widget (`controls`, `energyRange`, `fermiOptions`, …), rebuilds it.
-- `energy`, `cutPlanes`, `colors`, `widths`, `axisLength`, `showAxes`, `showBVectors`, `showKPath`,
-  `showKPoints`, `foldKPoints` and `showLabels` update the live widget, and
-  the settings panel follows them.
+  per line" slider) is swapped in; a new lattice rebuilds.
+- `onEnergyChange` reports the slider; `onStateChange(vis)` reports every
+  change, panel ones included, to mirror it in your own state.
 - Data is compared by identity, so keep it in state or `useMemo`; options
   are compared by value.
 - A `ref` gives the underlying `BZVisualizer`, for everything else.
+
+New live options need no wrapper changes: they are added to `BZLiveOptions`
+and `LIVE_OPTIONS` in the core (the compiler checks the two match).
 
 ## Input
 

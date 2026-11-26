@@ -29,6 +29,8 @@ import { buildControls, type ControlsOptions } from "./ui/controls";
 import { overlayGuard, type InteractGuard } from "./ui/guards";
 import { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
+// --- options -----------------------------------------------------------------
+
 /** Layer colours; anything left out keeps its default. */
 export interface BZColors {
   zone?: ColorRepresentation;
@@ -78,6 +80,28 @@ export interface BZLiveOptions {
   perspective?: boolean;
 }
 
+// Every live option, as a value (types vanish at runtime). Wrappers (React,
+// the Jupyter widget) use it to apply these in place and rebuild for the
+// rest. A Record makes the compiler check it lists exactly BZLiveOptions'
+// keys: add an option above and this fails to compile until it is listed.
+const LIVE: Record<keyof BZLiveOptions, true> = {
+  showAxes: true,
+  axisLength: true,
+  showBVectors: true,
+  showKPath: true,
+  showKPoints: true,
+  showPathpoints: true,
+  foldKPoints: true,
+  showLabels: true,
+  colors: true,
+  widths: true,
+  energy: true,
+  cutPlanes: true,
+  perspective: true,
+};
+/** The names of the options `setOptions` changes in place (see `BZLiveOptions`). */
+export const LIVE_OPTIONS = Object.keys(LIVE) as (keyof BZLiveOptions)[];
+
 export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
   /**
    * Show the built-in controls (default true); `{ settings: false }` keeps
@@ -114,13 +138,21 @@ export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
   interactGuard?: InteractGuard | false;
 }
 
+// --- camera views ------------------------------------------------------------
+
 /**
  * A camera view: along x, y or z, the default view, along a reciprocal
  * vector b1–b3, or along b1*–b3*, the dual (real-space) directions: bi* is
  * perpendicular to the other two b's, i.e. along the lattice vector ai.
  */
 export type ViewName =
-  keyof typeof VIEWS | "b1" | "b2" | "b3" | "b1*" | "b2*" | "b3*";
+  | keyof typeof VIEWS
+  | "b1"
+  | "b2"
+  | "b3"
+  | "b1*"
+  | "b2*"
+  | "b3*";
 
 /** The view direction and up vector for `name`, given the reciprocal basis. */
 export function viewAxes(
@@ -142,6 +174,8 @@ export function viewAxes(
   return { direction, up: (i === 2 ? b[1] : b[2]).clone() };
 }
 
+// --- the widget --------------------------------------------------------------
+
 /**
  * One component for both use cases: the Brillouin zone with the seekpath
  * k-path, plus Fermi surfaces when band data is given.
@@ -150,26 +184,35 @@ export function viewAxes(
  * `buildControls`) and a "click to interact" hint (see `interactGuard`).
  *
  * Every change of state fires a "statechange" event on `element`.
+ *
  */
 export class BZVisualizer {
+  // --- public parts ----------------------------------------------------------
+  /** The root element: the 3D window and its controls. */
   readonly element: HTMLDivElement;
+  /** The three.js viewer: scene, camera, renderers (see viewer.ts). */
   readonly viewer: Viewer;
+  /** Rows b1, b2, b3; it defines the zone. */
   readonly reciprocalBasis: Matrix;
   readonly bz: BrillouinZone;
 
+  // --- the scene layers, by name (see "How to read it") ----------------------
   private readonly layers: Record<string, Object3D | undefined> = {};
-  private readonly cleanups: (() => void)[] = [];
-  // Settings, kept so that replaced layers (`setSeekpath`, `setFermi`) look the same
+  private surface?: FermiSurface; // the "fermi" layer, typed
+
+  // --- remembered choices, re-applied to replaced layers ---------------------
   private readonly visibility: Record<string, boolean> = {};
-  private readonly colorChoices = new Map<string, ColorRepresentation>();
+  private readonly colorChoices = new Map<string, ColorRepresentation>(); // "layer:part"
   private readonly opacityChoices = new Map<string, number>();
   private readonly widthChoices: BZWidths = {};
   private foldedState = false;
   private labelsState = true;
-  private surface?: FermiSurface;
+  // Fermi settings, kept for the next `setFermi`
   private readonly fermiOptions: FermiSurfaceOptions;
   private clipToZone: boolean;
   private cutPlanes: readonly CutPlane[];
+
+  private readonly cleanups: (() => void)[] = []; // run by dispose()
 
   constructor(
     container: HTMLElement,
@@ -195,8 +238,11 @@ export class BZVisualizer {
       ...viewerOptions
     }: BZVisualizerOptions = {},
   ) {
+    // set up the lattice:
+    // read the k-path data +
+    // pick the basis that defines the zone (band data wins: the surfaces
+    // must sit on their own grid) + warn if the two disagree
     const path = seekpath ? fromSeekpathJSON(seekpath) : undefined;
-    // The surfaces must sit on their own grid, so band data defines the zone
     const basis = fermi?.reciprocalBasis ?? path?.reciprocalBasis;
     if (!basis)
       throw new Error("BZVisualizer needs seekpath data, Fermi data, or both");
@@ -215,7 +261,9 @@ export class BZVisualizer {
     this.clipToZone = this.fermiOptions.clip ?? true;
     this.cutPlanes = this.fermiOptions.cutPlanes ?? [];
 
-    // --- DOM ---------------------------------------------------------------
+    // set up the DOM:
+    // root element > 3D window > (viewer canvas, the click-to-interact
+    // guard, the controls bar floating over the top)
     const windowEl = el("div", "bzv-window");
     const controlBar = el("div", "bzv-controls");
     this.element = el("div", "bzv", [windowEl]);
@@ -227,7 +275,10 @@ export class BZVisualizer {
     // The controls float over the 3D window
     if (controls !== false) windowEl.append(controlBar);
 
-    // --- scene -------------------------------------------------------------
+    // set up the scene layers:
+    // zone, b-vectors and axes (always there, maybe hidden) +
+    // k-path and k-points (from the seekpath data) +
+    // Fermi surfaces (from the band data)
     const longest = Math.max(...basisVectors(basis).map((b) => b.length()));
     this.layers.bz = brillouinZoneObject(this.bz, {
       opacity: fermi ? 0.08 : 0.15,
@@ -239,6 +290,9 @@ export class BZVisualizer {
       if (layer) this.viewer.content.add(layer);
     this.setPathLayers(path);
     this.setFermiLayer(fermi, energy);
+
+    // apply the starting options through the same path as later changes,
+    // then frame the view
     this.setOptions({
       showAxes,
       axisLength,
@@ -252,6 +306,7 @@ export class BZVisualizer {
     });
     this.viewer.fit();
 
+    // build the controls last: they read the state set up above
     if (controls !== false)
       this.cleanups.push(
         buildControls(this, controlBar, {
@@ -261,6 +316,8 @@ export class BZVisualizer {
         }),
       );
   }
+
+  // --- options ---------------------------------------------------------------
 
   /** Change several live options at once; anything left out stays as it is. */
   setOptions(options: BZLiveOptions): this {
@@ -307,6 +364,8 @@ export class BZVisualizer {
     return this;
   }
 
+  // --- layers ----------------------------------------------------------------
+
   /**
    * A scene layer: "bz", "vectors", "axes", "kpath", "kpoints", "fermi", or
    * a band as "band:<index>". Undefined if there is no such layer.
@@ -327,6 +386,11 @@ export class BZVisualizer {
   isVisible(layer: string): boolean {
     return this.getLayer(layer)?.visible ?? false;
   }
+
+  // --- replacing the data ----------------------------------------------------
+  // `setFermi` and `setSeekpath` check the lattice and call the matching
+  // `set…Layer`, which the constructor uses too: remove the old layer, build
+  // the new one, then re-apply the remembered choices.
 
   /** The Fermi surfaces, if there is band data. */
   get fermiSurface(): FermiSurface | undefined {
@@ -427,6 +491,8 @@ export class BZVisualizer {
     this.setLabels(this.labelsState);
   }
 
+  // --- display settings ------------------------------------------------------
+
   /** Show the k-points folded into the first zone, or as given. */
   setFolded(folded: boolean): this {
     const kpoints = this.layers.kpoints;
@@ -465,6 +531,10 @@ export class BZVisualizer {
     return this.viewer.isPerspective;
   }
 
+  // --- colours and opacity ---------------------------------------------------
+  // Both act on the layer's materials (see `materials`), so a colour set on
+  // "kpath" reaches every mesh and line inside it.
+
   /**
    * Recolour a layer ("bz", "kpath", "kpoints", or a band as "band:<index>").
    * `part` narrows it to a named child: "fill" or "edges" of the zone,
@@ -479,7 +549,8 @@ export class BZVisualizer {
 
   getColor(layer: string, part = ""): string {
     const material = this.materials(layer, part)[0] as
-      (Material & { color?: Color }) | undefined;
+      | (Material & { color?: Color })
+      | undefined;
     return `#${material?.color?.getHexString() ?? "000000"}`;
   }
 
@@ -502,6 +573,8 @@ export class BZVisualizer {
     return this.materials(layer, layer === "bz" ? "fill" : "")[0]?.opacity ?? 1;
   }
 
+  // --- camera ----------------------------------------------------------------
+
   /**
    * Turn the camera to look along `name` (see `ViewName`) at the origin, and
    * zoom to fit. The built-in x, y, z and reset buttons use this.
@@ -510,6 +583,8 @@ export class BZVisualizer {
     this.viewer.fit(this.viewer.content, viewAxes(name, this.reciprocalBasis));
     return this;
   }
+
+  // --- Fermi surfaces --------------------------------------------------------
 
   /**
    * Move the Fermi surfaces to energy `E` (no-op without Fermi data).
@@ -547,6 +622,8 @@ export class BZVisualizer {
     return this.changed();
   }
 
+  // --- internals -------------------------------------------------------------
+
   // Fat-line widths are a material setting, so they apply to replaced layers too
   private applyWidths() {
     const { kpath, zoneEdges } = this.widthChoices;
@@ -566,6 +643,7 @@ export class BZVisualizer {
     return this;
   }
 
+  /** The distinct materials under a layer, or under its child named `part`. */
   private materials(layer: string, part: string): Material[] {
     const root = this.getLayer(layer);
     const target = part ? root?.getObjectByName(part) : root;
@@ -580,6 +658,7 @@ export class BZVisualizer {
     return [...found];
   }
 
+  /** Remove the controls, free the surfaces and the viewer, and remove the element. */
   dispose() {
     this.cleanups.forEach((fn) => fn());
     this.fermiSurface?.dispose();
@@ -587,6 +666,8 @@ export class BZVisualizer {
     this.element.remove();
   }
 }
+
+// --- legacy entry point ------------------------------------------------------
 
 /**
  * Drop-in for the legacy `createBZVisualizer(container, seekpathData, params, onReady)`.

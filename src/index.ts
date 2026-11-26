@@ -5,6 +5,7 @@ export type * from "./types";
 export {
   BZVisualizer,
   createBZVisualizer,
+  LIVE_OPTIONS,
   type ViewName,
   type BZColors,
   type BZWidths,
