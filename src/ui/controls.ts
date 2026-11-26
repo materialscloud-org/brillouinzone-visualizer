@@ -94,7 +94,8 @@ export function buildControls(
       readout.textContent = `${dE >= 0 ? "+" : "−"}${Math.abs(dE).toFixed(2)} eV`;
       readout.title = `E = ${(EF + dE).toFixed(3)} eV`;
     };
-    // Coalesce slider events to one re-mesh per frame
+    // While dragging: a coarse preview, at most one per frame. On release:
+    // the full surface, announced as a change
     let pending = 0;
     const slider = follow(
       rangeInput(
@@ -107,7 +108,7 @@ export function buildControls(
           show();
           pending ||= requestAnimationFrame(() => {
             pending = 0;
-            setByUser(EF + Number(slider.value));
+            vis.setEnergy(EF + Number(slider.value), true);
           });
         },
       ),
@@ -116,6 +117,11 @@ export function buildControls(
         show();
       },
     );
+    slider.addEventListener("change", () => {
+      cancelAnimationFrame(pending);
+      pending = 0;
+      setByUser(EF + Number(slider.value));
+    });
     const resetE = button("", () => setByUser(EF));
     resetE.replaceChildren("E", el("sub", "", ["F"]));
     resetE.title = "Back to the Fermi energy";
@@ -135,9 +141,14 @@ export function buildControls(
       name.addEventListener("click", () =>
         vis.setVisible(band, !vis.isVisible(band)),
       );
-      return follow(el("span", "bzv-band", [color(band), name]), (chip) =>
-        chip.classList.toggle("off", !vis.isVisible(band)),
-      );
+      return follow(el("span", "bzv-band", [color(band), name]), (chip) => {
+        chip.classList.toggle("off", !vis.isVisible(band));
+        // Faded: this band has no surface at the current energy
+        const [min, max] = surface.energyRanges[i];
+        const empty = vis.energy < min || vis.energy > max;
+        chip.classList.toggle("empty", empty);
+        chip.title = empty ? "No surface at this energy" : "";
+      });
     });
     return [
       el("div", "bzv-bands", chips),

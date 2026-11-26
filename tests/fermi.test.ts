@@ -138,6 +138,54 @@ describe("FermiSurface", () => {
     });
   }
 
+  it("has a surface exactly when the energy is inside the band's range", () => {
+    const surface = new FermiSurface(data, bz);
+    const [min, max] = surface.energyRanges[0];
+    expect([min, max]).toEqual([Math.min(...values), Math.max(...values)]);
+    const triangles = (E: number) =>
+      surface.setEnergy(E).meshes[0].geometry.getAttribute("position")?.count ??
+      0;
+    expect(triangles(min - 0.01)).toBe(0);
+    expect(triangles(max + 0.01)).toBe(0);
+    expect(triangles(min + 0.05)).toBeGreaterThan(0);
+    expect(triangles(max - 0.05)).toBeGreaterThan(0);
+  });
+
+  it("previews on every other grid point, on the same surface, uncached", () => {
+    const surface = new FermiSurface(data, bz);
+    // Vertex count of band 0 and its largest deviation from E(k) = E
+    const shown = (E: number) => {
+      const mesh = surface.meshes[0];
+      const pos = mesh.geometry.getAttribute("position");
+      const v = new Vector3();
+      let maxError = 0;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix);
+        const f = v.clone().applyMatrix3(toFractional).toArray();
+        maxError = Math.max(maxError, Math.abs(band(f) - E));
+      }
+      return { count: pos.count, maxError };
+    };
+
+    const full = shown(surface.setEnergy(1.2).energy);
+    surface.setEnergy(0);
+    // A cached energy is shown in full even when a preview is asked for
+    expect(shown(surface.setEnergy(1.2, true).energy).count).toBe(full.count);
+
+    const preview = surface.setEnergy(0.5, true).meshes[0].geometry;
+    let disposed = false;
+    preview.addEventListener("dispose", () => (disposed = true));
+    const coarse = shown(0.5);
+    expect(coarse.count).toBeGreaterThan(50);
+    // On the same surface, with the error of a grid twice as coarse
+    expect(coarse.maxError).toBeLessThan(0.15);
+
+    surface.setEnergy(0.5); // released: the full surface replaces the preview
+    expect(disposed).toBe(true);
+    expect(shown(0.5).count).toBeGreaterThan(coarse.count);
+    expect(shown(0.5).maxError).toBeLessThan(0.05);
+  });
+
   it("drops the least recently shown energy when the cache is full", () => {
     const surface = new FermiSurface(data, bz, { maxCacheSize: 2 });
     const first = surface.setEnergy(-1).meshes[0].geometry;

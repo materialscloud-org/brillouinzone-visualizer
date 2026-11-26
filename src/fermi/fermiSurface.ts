@@ -77,7 +77,9 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
   }
   // MarchingCubes marches points 1..size-2 and needs one more layer on
   // each side for its normals; field point p is lattice point lo - 1 + p.
-  const size = Math.max(...hi.map((h, a) => h - lo[a] + 1)) + 2;
+  let size = Math.max(...hi.map((h, a) => h - lo[a] + 1)) + 2;
+  // Odd, so the preview's every other point ends on the last point
+  if (size % 2 === 0) size++;
   const start = lo.map((l) => l - 1);
 
   // Field point p ↔ local (p - size/2) / (size/2) ↔ k = origin + Σ (start + p) / n · b
@@ -116,6 +118,31 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
   return { size, matrix, fill };
 }
 
+// MarchingCubes needs a material, but only its geometry arrays are used
+const unusedMaterial = new MeshStandardMaterial();
+
+/** Halve a cubic field of odd size: every other point, ending on the last. */
+function everyOther(field: Float32Array, size: number): Float32Array {
+  const half = (size + 1) / 2;
+  const out = new Float32Array(half ** 3);
+  let q = 0;
+  for (let z = 0; z < size; z += 2)
+    for (let y = 0; y < size; y += 2)
+      for (let x = 0; x < size; x += 2)
+        out[q++] = field[(z * size + y) * size + x];
+  return out;
+}
+
+/** A marching resolution: the full field, or every other point for previews. */
+interface Level {
+  size: number;
+  /** Local [-1, 1]³ of this level's MarchingCubes to Cartesian k. */
+  matrix: Matrix4;
+  fields: (Float32Array | undefined)[];
+  mc: MarchingCubes;
+  maxPolyCount: number;
+}
+
 /**
  * Isosurfaces E(k) = E of every band, clipped to the first zone.
  * Meshing is done by three's MarchingCubes; the reciprocal basis (which may
@@ -123,19 +150,23 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
  */
 export class FermiSurface extends Group {
   readonly meshes: Mesh<BufferGeometry, MeshStandardMaterial>[];
+  /**
+   * Each band's lowest and highest energy, [min, max]. A band has a surface
+   * at energy E exactly when min <= E <= max.
+   */
+  readonly energyRanges: readonly (readonly [number, number])[];
   energy = NaN;
 
   private readonly sampling: ReturnType<typeof zoneSampling>;
-  private readonly fields: (Float32Array | undefined)[];
-  private readonly ranges: [number, number][];
+  private readonly full: Level;
+  private readonly coarse: Level;
+  private previewGeometries?: BufferGeometry[]; // shown once, never cached
   private readonly cache = new Map<string, BufferGeometry[]>();
   private readonly cachePrecision: number;
   private readonly maxCacheSize: number;
   private readonly zonePlanes: Plane[];
   private clipToZone: boolean;
   private cutPlanes: Plane[] = [];
-  private mc: MarchingCubes;
-  private maxPolyCount: number;
 
   constructor(
     readonly data: FermiSurfaceData,
@@ -154,25 +185,41 @@ export class FermiSurface extends Group {
     this.cachePrecision = cachePrecision;
     this.maxCacheSize = Math.max(1, maxCacheSize); // never drop the one on screen
     this.sampling = zoneSampling(bz, data.bands[0], data.reciprocalBasis);
-    this.fields = data.bands.map(() => undefined);
-    this.ranges = data.bands.map((b) => {
+    this.energyRanges = data.bands.map((b) => {
       let min = Infinity;
       let max = -Infinity;
       for (const e of b.data) {
         if (e < min) min = e;
         if (e > max) max = e;
       }
-      return [min, max];
+      return [min, max] as const;
     });
 
     const { size, matrix } = this.sampling;
-    this.maxPolyCount = 16 * size * size;
-    this.mc = new MarchingCubes(
+    const level = (size: number, matrix: Matrix4): Level => ({
       size,
-      new MeshStandardMaterial(),
-      false,
-      false,
-      this.maxPolyCount,
+      matrix,
+      fields: data.bands.map(() => undefined),
+      mc: new MarchingCubes(
+        size,
+        unusedMaterial,
+        false,
+        false,
+        16 * size * size,
+      ),
+      maxPolyCount: 16 * size * size,
+    });
+    this.full = level(size, matrix);
+    // Coarse point p is full point 2p: local = c·local' + (c - 1), c = 2·size'/size
+    const coarseSize = (size + 1) / 2;
+    const c = (2 * coarseSize) / size;
+    this.coarse = level(
+      coarseSize,
+      matrix
+        .clone()
+        .multiply(
+          new Matrix4().makeScale(c, c, c).setPosition(c - 1, c - 1, c - 1),
+        ),
     );
 
     // three keeps the side a plane's normal points to, so flip ours
@@ -233,69 +280,97 @@ export class FermiSurface extends Group {
     return this;
   }
 
-  /** Show the isosurfaces at energy `E` (same units as the band data). */
-  setEnergy(E: number): this {
+  /**
+   * Show the isosurfaces at energy `E` (same units as the band data).
+   * `preview` marches every other grid point (about 8× faster) and does not
+   * cache the result: for a slider being dragged. A cached energy is always
+   * shown in full.
+   */
+  setEnergy(E: number, preview = false): this {
     const key = E.toFixed(this.cachePrecision);
-    let geometries = this.cache.get(key);
-    if (!geometries)
-      geometries = this.data.bands.map((_, i) => this.march(i, Number(key)));
-    // Re-insert so the Map's order is least recently shown first
-    this.cache.delete(key);
-    this.cache.set(key, geometries);
-    for (const [old, dropped] of this.cache) {
-      if (this.cache.size <= this.maxCacheSize) break;
-      this.cache.delete(old);
-      dropped.forEach((g) => g.dispose());
+    const cached = this.cache.get(key);
+    const level = cached || !preview ? this.full : this.coarse;
+    const geometries =
+      cached ??
+      this.data.bands.map((_, i) => this.march(i, Number(key), level));
+    this.previewGeometries?.forEach((g) => g.dispose());
+    this.previewGeometries = level === this.coarse ? geometries : undefined;
+    if (level === this.full) {
+      // Re-insert so the Map's order is least recently shown first
+      this.cache.delete(key);
+      this.cache.set(key, geometries);
+      for (const [old, dropped] of this.cache) {
+        if (this.cache.size <= this.maxCacheSize) break;
+        this.cache.delete(old);
+        dropped.forEach((g) => g.dispose());
+      }
     }
-    this.meshes.forEach((mesh, i) => (mesh.geometry = geometries[i]));
+    this.meshes.forEach((mesh, i) => {
+      mesh.geometry = geometries[i];
+      mesh.matrix.copy(level.matrix);
+      mesh.matrixWorldNeedsUpdate = true;
+    });
     this.energy = Number(key);
     return this;
   }
 
-  private march(bandIndex: number, E: number): BufferGeometry {
+  private march(bandIndex: number, E: number, level: Level): BufferGeometry {
     const geometry = new BufferGeometry();
-    const [min, max] = this.ranges[bandIndex];
+    const [min, max] = this.energyRanges[bandIndex];
     if (E < min || E > max) return geometry;
 
-    const field = (this.fields[bandIndex] ??= this.sampling.fill(
-      this.data.bands[bandIndex],
-    ));
+    const field =
+      level === this.full
+        ? this.fullField(bandIndex)
+        : (level.fields[bandIndex] ??= everyOther(
+            this.fullField(bandIndex),
+            this.full.size,
+          ));
     for (;;) {
-      const mc = this.mc;
+      const mc = level.mc;
       mc.field = field;
       mc.normal_cache.fill(0);
       mc.isolation = E;
       mc.update();
-      if (mc.count / 3 <= this.maxPolyCount) break;
+      if (mc.count / 3 <= level.maxPolyCount) break;
       // The fixed-size output buffers overflowed: grow and retry
-      this.maxPolyCount *= 2;
-      this.mc = new MarchingCubes(
-        this.sampling.size,
-        mc.material as MeshStandardMaterial,
+      level.maxPolyCount *= 2;
+      level.mc.geometry.dispose();
+      level.mc = new MarchingCubes(
+        level.size,
+        unusedMaterial,
         false,
         false,
-        this.maxPolyCount,
+        level.maxPolyCount,
       );
     }
 
-    const n = this.mc.count * 3;
+    const n = level.mc.count * 3;
     geometry.setAttribute(
       "position",
-      new BufferAttribute(this.mc.positionArray.slice(0, n), 3),
+      new BufferAttribute(level.mc.positionArray.slice(0, n), 3),
     );
     geometry.setAttribute(
       "normal",
-      new BufferAttribute(this.mc.normalArray.slice(0, n), 3),
+      new BufferAttribute(level.mc.normalArray.slice(0, n), 3),
     );
     geometry.computeBoundingSphere();
     return geometry;
+  }
+
+  private fullField(bandIndex: number): Float32Array {
+    return (this.full.fields[bandIndex] ??= this.sampling.fill(
+      this.data.bands[bandIndex],
+    ));
   }
 
   dispose() {
     for (const geometries of this.cache.values())
       geometries.forEach((g) => g.dispose());
     this.cache.clear();
+    this.previewGeometries?.forEach((g) => g.dispose());
     this.meshes.forEach((m) => m.material.dispose());
-    this.mc.geometry.dispose();
+    this.full.mc.geometry.dispose();
+    this.coarse.mc.geometry.dispose();
   }
 }

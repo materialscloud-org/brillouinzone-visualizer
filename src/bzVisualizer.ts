@@ -459,9 +459,13 @@ export class BZVisualizer {
     return this.materials(layer, layer === "bz" ? "fill" : "")[0]?.opacity ?? 1;
   }
 
-  /** Move the Fermi surfaces to energy `E` (no-op without Fermi data). */
-  setEnergy(E: number): this {
-    this.fermiSurface?.setEnergy(E);
+  /**
+   * Move the Fermi surfaces to energy `E` (no-op without Fermi data).
+   * `preview`: a coarse, uncached surface, for a slider being dragged;
+   * follow it with a plain call when the drag ends.
+   */
+  setEnergy(E: number, preview = false): this {
+    this.fermiSurface?.setEnergy(E, preview);
     return this.changed();
   }
 

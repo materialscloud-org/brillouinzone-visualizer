@@ -95,7 +95,7 @@ default 1.15), `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
 Settings panel), and for Fermi data `energy`, `energyRange` and
 `fermiOptions`. At runtime: `setOptions` (the `show*` flags, `axisLength`,
 `foldKPoints`, `colors`, `widths`, `energy`, `cutPlanes`; choices are kept
-when the data is swapped), `setVisible`, `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy`,
+when the data is swapped), `setVisible`, `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy` (`setEnergy(E, true)` gives a coarse preview for a slider being dragged),
 `setCutPlanes`, and `setSeekpath` / `setFermi` to replace the k-points or
 band data in place (same lattice; settings and camera stay, the energy keeps
 its offset from E_F).

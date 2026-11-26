@@ -88,7 +88,10 @@ async function show(index: number) {
   const [data, options] = await example.load();
   if (current !== request) return; // a newer selection won
   vis?.dispose();
-  vis = new BZVisualizer(container, data, options);
+  vis = new BZVisualizer(container, data, {
+    energyRange: [-3, 3],
+    ...options,
+  });
   note.textContent = example.note ?? "";
 }
 

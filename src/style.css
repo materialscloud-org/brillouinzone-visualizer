@@ -250,6 +250,10 @@
   cursor: pointer;
 }
 
+.bzv-band.empty {
+  opacity: 0.35;
+}
+
 .bzv-band.off span {
   opacity: 0.4;
   text-decoration: line-through;

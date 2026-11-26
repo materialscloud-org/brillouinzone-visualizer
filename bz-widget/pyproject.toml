@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bz-widget"
+version = "0.0.1"
+description = "Brillouin zone, k-path and Fermi surface viewer for Jupyter (bz-visualizer as an anywidget)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["anywidget>=0.9"]
+
+[project.optional-dependencies]
+test = ["pytest", "seekpath"]
+
+[tool.hatch.build]
+# The built JS is not in git; run `pnpm build` before building the package
+artifacts = ["src/bz_widget/static/*"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bz_widget"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.31.0",
+    "pytest>=8.4.2",
+    "seekpath>=2.2.2",
+]
