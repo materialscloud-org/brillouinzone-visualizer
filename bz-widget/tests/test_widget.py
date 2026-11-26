@@ -63,4 +63,5 @@ def test_camera_is_checked_and_view_takes_a_direction():
         w.camera = {"position": [1, 2, 3]}
     with pytest.raises(ValueError):
         w.view("w")
+    w.view("b2*")
     w.view("x")  # not displayed: nothing to receive it, but no error

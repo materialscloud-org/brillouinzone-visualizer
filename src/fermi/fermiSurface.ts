@@ -43,11 +43,24 @@ export interface FermiSurfaceOptions {
   clip?: boolean;
   /** Extra planes to cut the surfaces with (see `CutPlane`). */
   cutPlanes?: readonly CutPlane[];
-  /** Energies are cached after rounding to this many decimals. */
+  /** Energies are cached after rounding to this many decimals (default 3). */
   cachePrecision?: number;
-  /** Energies kept in the cache; the least recently shown are dropped (default 16). */
+  /** Energies kept in the cache; the least recently shown are dropped (default 128). */
   maxCacheSize?: number;
+  /**
+   * Use every Nth grid point for the surfaces (default 1, all of them). 2
+   * marches 8× fewer cells, for big grids, at the cost of detail.
+   */
+  gridStep?: number;
+  /**
+   * The same while a slider is dragged (`setEnergy(E, true)`); the full
+   * surface follows on release. Default 2 (8× fewer cells); 1, or equal to
+   * `gridStep`: no coarser preview. For big files, 4 or more.
+   */
+  dragGridStep?: number;
 }
+
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 
 /**
  * The cubic marching-cubes field covering the zone, sampled straight from
@@ -55,7 +68,12 @@ export interface FermiSurfaceOptions {
  * field's local [-1, 1]³ space to Cartesian k. The grid is laid out along
  * its own basis, which may differ from the one the zone was built from.
  */
-function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
+function zoneSampling(
+  bz: BrillouinZone,
+  grid: VolumetricData,
+  basis: Matrix,
+  steps: number[],
+) {
   const [D, H, W] = grid.shape;
   const n = [W, H, D];
   const [b1, b2, b3] = basisVectors(basis);
@@ -78,8 +96,9 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
   // MarchingCubes marches points 1..size-2 and needs one more layer on
   // each side for its normals; field point p is lattice point lo - 1 + p.
   let size = Math.max(...hi.map((h, a) => h - lo[a] + 1)) + 2;
-  // Odd, so the preview's every other point ends on the last point
-  if (size % 2 === 0) size++;
+  // Padded so every step ends on the last point: (size - 1) divisible by each
+  const lcm = steps.reduce((a, b) => (a * b) / gcd(a, b), 1);
+  size = Math.ceil((size - 1) / lcm) * lcm + 1;
   const start = lo.map((l) => l - 1);
 
   // Field point p ↔ local (p - size/2) / (size/2) ↔ k = origin + Σ (start + p) / n · b
@@ -121,20 +140,22 @@ function zoneSampling(bz: BrillouinZone, grid: VolumetricData, basis: Matrix) {
 // MarchingCubes needs a material, but only its geometry arrays are used
 const unusedMaterial = new MeshStandardMaterial();
 
-/** Halve a cubic field of odd size: every other point, ending on the last. */
-function everyOther(field: Float32Array, size: number): Float32Array {
-  const half = (size + 1) / 2;
-  const out = new Float32Array(half ** 3);
+/** Every `step`th point of a cubic field, ending on the last ((size - 1) % step = 0). */
+function subsample(field: Float32Array, size: number, step: number) {
+  if (step === 1) return field;
+  const n = (size - 1) / step + 1;
+  const out = new Float32Array(n ** 3);
   let q = 0;
-  for (let z = 0; z < size; z += 2)
-    for (let y = 0; y < size; y += 2)
-      for (let x = 0; x < size; x += 2)
+  for (let z = 0; z < size; z += step)
+    for (let y = 0; y < size; y += step)
+      for (let x = 0; x < size; x += step)
         out[q++] = field[(z * size + y) * size + x];
   return out;
 }
 
-/** A marching resolution: the full field, or every other point for previews. */
+/** A marching resolution: every `step`th point of the sampled field. */
 interface Level {
+  step: number;
   size: number;
   /** Local [-1, 1]³ of this level's MarchingCubes to Cartesian k. */
   matrix: Matrix4;
@@ -156,10 +177,15 @@ export class FermiSurface extends Group {
    */
   readonly energyRanges: readonly (readonly [number, number])[];
   energy = NaN;
+  /** Every `gridStep`th grid point is marched (see `FermiSurfaceOptions`). */
+  readonly gridStep: number;
+
+  /** ... and every `dragGridStep`th while a slider is dragged. */
+  readonly dragGridStep: number;
 
   private readonly sampling: ReturnType<typeof zoneSampling>;
   private readonly full: Level;
-  private readonly coarse: Level;
+  private readonly drag: Level; // the full level when the steps are equal
   private previewGeometries?: BufferGeometry[]; // shown once, never cached
   private readonly cache = new Map<string, BufferGeometry[]>();
   private readonly cachePrecision: number;
@@ -178,13 +204,14 @@ export class FermiSurface extends Group {
       cutPlanes = [],
       cachePrecision = 3,
       maxCacheSize = 128,
+      gridStep = 1,
+      dragGridStep = 2,
     }: FermiSurfaceOptions = {},
   ) {
     super();
     this.name = "fermiSurface";
     this.cachePrecision = cachePrecision;
     this.maxCacheSize = Math.max(1, maxCacheSize); // never drop the one on screen
-    this.sampling = zoneSampling(bz, data.bands[0], data.reciprocalBasis);
     this.energyRanges = data.bands.map((b) => {
       let min = Infinity;
       let max = -Infinity;
@@ -195,32 +222,17 @@ export class FermiSurface extends Group {
       return [min, max] as const;
     });
 
-    const { size, matrix } = this.sampling;
-    const level = (size: number, matrix: Matrix4): Level => ({
-      size,
-      matrix,
-      fields: data.bands.map(() => undefined),
-      mc: new MarchingCubes(
-        size,
-        unusedMaterial,
-        false,
-        false,
-        16 * size * size,
-      ),
-      maxPolyCount: 16 * size * size,
-    });
-    this.full = level(size, matrix);
-    // Coarse point p is full point 2p: local = c·local' + (c - 1), c = 2·size'/size
-    const coarseSize = (size + 1) / 2;
-    const c = (2 * coarseSize) / size;
-    this.coarse = level(
-      coarseSize,
-      matrix
-        .clone()
-        .multiply(
-          new Matrix4().makeScale(c, c, c).setPosition(c - 1, c - 1, c - 1),
-        ),
-    );
+    this.gridStep = Math.max(1, Math.round(gridStep));
+    this.dragGridStep = Math.max(this.gridStep, Math.round(dragGridStep));
+    this.sampling = zoneSampling(bz, data.bands[0], data.reciprocalBasis, [
+      this.gridStep,
+      this.dragGridStep,
+    ]);
+    this.full = this.level(this.gridStep);
+    this.drag =
+      this.dragGridStep === this.gridStep
+        ? this.full
+        : this.level(this.dragGridStep);
 
     // three keeps the side a plane's normal points to, so flip ours
     this.zonePlanes = bz.planes.map(
@@ -242,7 +254,7 @@ export class FermiSurface extends Group {
       );
       mesh.name = band.field ?? `Band ${i + 1}`;
       mesh.matrixAutoUpdate = false;
-      mesh.matrix.copy(matrix);
+      mesh.matrix.copy(this.full.matrix);
       return mesh;
     });
     this.add(...this.meshes);
@@ -269,6 +281,9 @@ export class FermiSurface extends Group {
   }
 
   private updateClipping(): this {
+    // Clipped, the surfaces lie inside the zone (their geometry does not):
+    // framing the view needs only the zone
+    this.userData.excludeFromFit = this.clipToZone;
     const planes = [
       ...(this.clipToZone ? this.zonePlanes : []),
       ...this.cutPlanes,
@@ -280,21 +295,41 @@ export class FermiSurface extends Group {
     return this;
   }
 
+  /** Every `step`th point of the sampled field (see `zoneSampling`). */
+  private level(step: number): Level {
+    const { size, matrix } = this.sampling;
+    // Level point p is sampled point step·p: local = c·local' + (c - 1), c = step·n/size
+    const n = (size - 1) / step + 1;
+    const c = (step * n) / size;
+    return {
+      step,
+      size: n,
+      matrix: matrix
+        .clone()
+        .multiply(
+          new Matrix4().makeScale(c, c, c).setPosition(c - 1, c - 1, c - 1),
+        ),
+      fields: this.data.bands.map(() => undefined),
+      mc: new MarchingCubes(n, unusedMaterial, false, false, 16 * n * n),
+      maxPolyCount: 16 * n * n,
+    };
+  }
+
   /**
    * Show the isosurfaces at energy `E` (same units as the band data).
-   * `preview` marches every other grid point (about 8× faster) and does not
-   * cache the result: for a slider being dragged. A cached energy is always
-   * shown in full.
+   * `preview`, for a slider being dragged, marches every `dragGridStep`th
+   * grid point and does not cache the result. A cached energy, or a preview
+   * with no coarser step, is shown in full.
    */
   setEnergy(E: number, preview = false): this {
     const key = E.toFixed(this.cachePrecision);
     const cached = this.cache.get(key);
-    const level = cached || !preview ? this.full : this.coarse;
+    const level = cached || !preview ? this.full : this.drag;
     const geometries =
       cached ??
       this.data.bands.map((_, i) => this.march(i, Number(key), level));
     this.previewGeometries?.forEach((g) => g.dispose());
-    this.previewGeometries = level === this.coarse ? geometries : undefined;
+    this.previewGeometries = level !== this.full ? geometries : undefined;
     if (level === this.full) {
       // Re-insert so the Map's order is least recently shown first
       this.cache.delete(key);
@@ -319,13 +354,11 @@ export class FermiSurface extends Group {
     const [min, max] = this.energyRanges[bandIndex];
     if (E < min || E > max) return geometry;
 
-    const field =
-      level === this.full
-        ? this.fullField(bandIndex)
-        : (level.fields[bandIndex] ??= everyOther(
-            this.fullField(bandIndex),
-            this.full.size,
-          ));
+    const field = (level.fields[bandIndex] ??= subsample(
+      this.sampling.fill(this.data.bands[bandIndex]),
+      this.sampling.size,
+      level.step,
+    ));
     for (;;) {
       const mc = level.mc;
       mc.field = field;
@@ -358,12 +391,6 @@ export class FermiSurface extends Group {
     return geometry;
   }
 
-  private fullField(bandIndex: number): Float32Array {
-    return (this.full.fields[bandIndex] ??= this.sampling.fill(
-      this.data.bands[bandIndex],
-    ));
-  }
-
   dispose() {
     for (const geometries of this.cache.values())
       geometries.forEach((g) => g.dispose());
@@ -371,6 +398,6 @@ export class FermiSurface extends Group {
     this.previewGeometries?.forEach((g) => g.dispose());
     this.meshes.forEach((m) => m.material.dispose());
     this.full.mc.geometry.dispose();
-    this.coarse.mc.geometry.dispose();
+    if (this.drag !== this.full) this.drag.mc.geometry.dispose();
   }
 }

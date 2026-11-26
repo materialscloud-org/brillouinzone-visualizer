@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { Matrix3, Matrix4, Vector3 } from "three";
 
 import { getBrillouinZone, basisVectors } from "../src/brillouinZone";
-import { FermiSurface, parseBXSF } from "../src";
+import { parseBXSF } from "../src";
+import { FermiSurface } from "../src/fermi/fermiSurface";
 import type { FermiSurfaceData, Matrix } from "../src/types";
 
 const BXSF_DIR = "demo/data";
@@ -151,39 +152,81 @@ describe("FermiSurface", () => {
     expect(triangles(max - 0.05)).toBeGreaterThan(0);
   });
 
+  // Vertex count of band 0 and its largest deviation from E(k) = E
+  const shown = (surface: FermiSurface, E: number) => {
+    const mesh = surface.meshes[0];
+    const pos = mesh.geometry.getAttribute("position");
+    const v = new Vector3();
+    let maxError = 0;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix);
+      const f = v.clone().applyMatrix3(toFractional).toArray();
+      maxError = Math.max(maxError, Math.abs(band(f) - E));
+    }
+    return { count: pos.count, maxError };
+  };
+
   it("previews on every other grid point, on the same surface, uncached", () => {
     const surface = new FermiSurface(data, bz);
-    // Vertex count of band 0 and its largest deviation from E(k) = E
-    const shown = (E: number) => {
-      const mesh = surface.meshes[0];
-      const pos = mesh.geometry.getAttribute("position");
-      const v = new Vector3();
-      let maxError = 0;
-      for (let i = 0; i < pos.count; i++) {
-        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix);
-        const f = v.clone().applyMatrix3(toFractional).toArray();
-        maxError = Math.max(maxError, Math.abs(band(f) - E));
-      }
-      return { count: pos.count, maxError };
-    };
+    const shownAt = (E: number) => shown(surface, E);
 
-    const full = shown(surface.setEnergy(1.2).energy);
+    const full = shownAt(surface.setEnergy(1.2).energy);
     surface.setEnergy(0);
     // A cached energy is shown in full even when a preview is asked for
-    expect(shown(surface.setEnergy(1.2, true).energy).count).toBe(full.count);
+    expect(shownAt(surface.setEnergy(1.2, true).energy).count).toBe(full.count);
 
     const preview = surface.setEnergy(0.5, true).meshes[0].geometry;
     let disposed = false;
     preview.addEventListener("dispose", () => (disposed = true));
-    const coarse = shown(0.5);
+    const coarse = shownAt(0.5);
     expect(coarse.count).toBeGreaterThan(50);
     // On the same surface, with the error of a grid twice as coarse
     expect(coarse.maxError).toBeLessThan(0.15);
 
     surface.setEnergy(0.5); // released: the full surface replaces the preview
     expect(disposed).toBe(true);
-    expect(shown(0.5).count).toBeGreaterThan(coarse.count);
-    expect(shown(0.5).maxError).toBeLessThan(0.05);
+    expect(shownAt(0.5).count).toBeGreaterThan(coarse.count);
+    expect(shownAt(0.5).maxError).toBeLessThan(0.05);
+  });
+
+  it("marches other grid steps on the same surface", () => {
+    const surface = new FermiSurface(data, bz, {
+      gridStep: 2,
+      dragGridStep: 4,
+    });
+    surface.setEnergy(0.5, true);
+    const drag = shown(surface, 0.5);
+    surface.setEnergy(0.5);
+    const settled = shown(surface, 0.5);
+    expect(drag.count).toBeGreaterThan(20);
+    expect(drag.maxError).toBeLessThan(0.4); // a grid 4× as coarse
+    expect(settled.count).toBeGreaterThan(drag.count);
+    expect(settled.maxError).toBeLessThan(0.15);
+  });
+
+  it("drags at full detail when the steps are equal", () => {
+    expect(new FermiSurface(data, bz).dragGridStep).toBe(2); // the default
+    // Never finer than the settled surface
+    expect(
+      new FermiSurface(data, bz, { gridStep: 2, dragGridStep: 1 }).dragGridStep,
+    ).toBe(2);
+
+    // A drag marches (and caches) the full surface, so releasing at that
+    // energy reuses it
+    const surface = new FermiSurface(data, bz, { dragGridStep: 1 });
+    const dragged = surface.setEnergy(0.7, true).meshes[0].geometry;
+    expect(surface.setEnergy(0.7).meshes[0].geometry).toBe(dragged);
+    expect(shown(surface, 0.7).maxError).toBeLessThan(0.05);
+  });
+
+  it("is left out of the view framing only while clipped to the zone", () => {
+    const surface = new FermiSurface(data, bz);
+    expect(surface.userData.excludeFromFit).toBe(true);
+    surface.setClipping(false);
+    expect(surface.userData.excludeFromFit).toBe(false);
+    expect(
+      new FermiSurface(data, bz, { clip: false }).userData.excludeFromFit,
+    ).toBe(false);
   });
 
   it("drops the least recently shown energy when the cache is full", () => {

@@ -4,9 +4,10 @@ import {
   type Material,
   type Mesh,
   type Object3D,
+  type Vector3,
 } from "three";
 
-import { Viewer, type ViewerOptions } from "./viewer";
+import { Viewer, VIEWS, type ViewerOptions } from "./viewer";
 import { basisVectors, getBrillouinZone, sameLattice } from "./brillouinZone";
 import {
   axesObject,
@@ -25,6 +26,7 @@ import type {
 } from "./types";
 import { el } from "./ui/elements";
 import { buildControls, type ControlsOptions } from "./ui/controls";
+import { overlayGuard, type InteractGuard } from "./ui/guards";
 import { FermiSurface, type FermiSurfaceOptions } from "./fermi/fermiSurface";
 
 /** Layer colours; anything left out keeps its default. */
@@ -72,6 +74,8 @@ export interface BZLiveOptions {
   widths?: BZWidths;
   energy?: number;
   cutPlanes?: readonly CutPlane[];
+  /** A perspective camera instead of an orthographic one (same view). */
+  perspective?: boolean;
 }
 
 export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
@@ -102,14 +106,48 @@ export interface BZVisualizerOptions extends ViewerOptions, ControlsOptions {
   fermiOptions?: FermiSurfaceOptions;
   /** Initial isosurface energy; defaults to the Fermi energy. */
   energy?: number;
+  /**
+   * The "click to interact" hint (with `clickToInteract`, the default):
+   * `overlayGuard` (default, dims the scene on hover), your own (see
+   * `InteractGuard`), or false for none.
+   */
+  interactGuard?: InteractGuard | false;
+}
+
+/**
+ * A camera view: along x, y or z, the default view, along a reciprocal
+ * vector b1–b3, or along b1*–b3*, the dual (real-space) directions: bi* is
+ * perpendicular to the other two b's, i.e. along the lattice vector ai.
+ */
+export type ViewName =
+  keyof typeof VIEWS | "b1" | "b2" | "b3" | "b1*" | "b2*" | "b3*";
+
+/** The view direction and up vector for `name`, given the reciprocal basis. */
+export function viewAxes(
+  name: ViewName,
+  reciprocalBasis: Matrix,
+): { direction: Vector3; up: Vector3 } {
+  if (name in VIEWS) return VIEWS[name as keyof typeof VIEWS];
+  const match = /^b([123])(\*?)$/.exec(name);
+  if (!match) throw new Error(`Unknown view "${name}"`);
+  const b = basisVectors(reciprocalBasis);
+  const i = Number(match[1]) - 1;
+  const [j, k] = [(i + 1) % 3, (i + 2) % 3];
+  // bi* = (bj × bk) / (bi · bj × bk): the sign keeps it on bi's side
+  const normal = b[j].clone().cross(b[k]);
+  const direction = match[2]
+    ? normal.multiplyScalar(Math.sign(b[i].dot(normal)))
+    : b[i].clone();
+  // Up like the x/y/z views: b3 up, except when looking along the third axis
+  return { direction, up: (i === 2 ? b[1] : b[2]).clone() };
 }
 
 /**
  * One component for both use cases: the Brillouin zone with the seekpath
  * k-path, plus Fermi surfaces when band data is given.
  *
- * Layout follows mc-react-structure-visualizer: the 3D window on top
- * ("Click to interact"), a control box below (see `buildControls`).
+ * The 3D window, with the controls floating over its top (see
+ * `buildControls`) and a "click to interact" hint (see `interactGuard`).
  *
  * Every change of state fires a "statechange" event on `element`.
  */
@@ -153,6 +191,7 @@ export class BZVisualizer {
       showLabels = true,
       colors = {},
       widths = {},
+      interactGuard = overlayGuard,
       ...viewerOptions
     }: BZVisualizerOptions = {},
   ) {
@@ -183,18 +222,10 @@ export class BZVisualizer {
     container.appendChild(this.element);
     this.viewer = new Viewer(windowEl, viewerOptions);
 
-    const note = el("div", "bzv-note", ["Click to interact"]);
-    note.addEventListener("click", () =>
-      this.viewer.setInteractive(!this.viewer.isInteractive),
-    );
-    // Clicking the note should not also switch on interaction with the scene
-    note.addEventListener("mousedown", (e) => e.stopPropagation());
-    const syncNote = () =>
-      note.classList.toggle("on", this.viewer.isInteractive);
-    windowEl.addEventListener("interactivechange", syncNote);
-    syncNote();
+    if (interactGuard && viewerOptions.clickToInteract !== false)
+      windowEl.append(interactGuard(this.viewer));
     // The controls float over the 3D window
-    windowEl.append(note, ...(controls !== false ? [controlBar] : []));
+    if (controls !== false) windowEl.append(controlBar);
 
     // --- scene -------------------------------------------------------------
     const longest = Math.max(...basisVectors(basis).map((b) => b.length()));
@@ -205,7 +236,7 @@ export class BZVisualizer {
     // Unit length here; `axisLength` scales it
     this.layers.axes = axesObject(longest);
     for (const layer of Object.values(this.layers))
-      if (layer) this.viewer.add(layer);
+      if (layer) this.viewer.content.add(layer);
     this.setPathLayers(path);
     this.setFermiLayer(fermi, energy);
     this.setOptions({
@@ -242,6 +273,7 @@ export class BZVisualizer {
       widths = {},
       energy,
       cutPlanes,
+      perspective,
     } = options;
     const layers = {
       axes: options.showAxes,
@@ -271,6 +303,7 @@ export class BZVisualizer {
     this.applyWidths();
     if (energy !== undefined) this.setEnergy(energy);
     if (cutPlanes) this.setCutPlanes(cutPlanes);
+    if (perspective !== undefined) this.setPerspective(perspective);
     return this;
   }
 
@@ -332,7 +365,7 @@ export class BZVisualizer {
       cutPlanes: this.cutPlanes,
     }).setEnergy(energy ?? fermi.fermiEnergy);
     this.layers.fermi = this.surface;
-    this.viewer.add(this.surface);
+    this.viewer.content.add(this.surface);
     this.setVisible("fermi", this.visibility.fermi ?? true);
     // Colours and opacity chosen for the previous data carry over
     this.surface.meshes.forEach((_, i) => {
@@ -387,7 +420,7 @@ export class BZVisualizer {
     for (const name of ["kpath", "kpoints"]) {
       const layer = this.layers[name];
       if (!layer) continue;
-      this.viewer.add(layer);
+      this.viewer.content.add(layer);
       this.setVisible(name, this.visibility[name] ?? true);
     }
     this.setFolded(this.foldedState);
@@ -420,6 +453,16 @@ export class BZVisualizer {
 
   get labelsShown(): boolean {
     return this.labelsState;
+  }
+
+  /** A perspective camera instead of an orthographic one, keeping the view. */
+  setPerspective(on: boolean): this {
+    this.viewer.setPerspective(on);
+    return this.changed();
+  }
+
+  get perspective(): boolean {
+    return this.viewer.isPerspective;
   }
 
   /**
@@ -457,6 +500,15 @@ export class BZVisualizer {
 
   getOpacity(layer: string): number {
     return this.materials(layer, layer === "bz" ? "fill" : "")[0]?.opacity ?? 1;
+  }
+
+  /**
+   * Turn the camera to look along `name` (see `ViewName`) at the origin, and
+   * zoom to fit. The built-in x, y, z and reset buttons use this.
+   */
+  setView(name: ViewName): this {
+    this.viewer.fit(this.viewer.content, viewAxes(name, this.reciprocalBasis));
+    return this;
   }
 
   /**

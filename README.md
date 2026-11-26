@@ -93,12 +93,38 @@ default 1.15), `showBVectors`, `showKPath`, `showKPoints`, `foldKPoints`,
 `showLabels`, `colors`, `widths` (`{ kpath, zoneEdges }` in pixels),
 `controls` (`false` hides them all, `{ settings: false }` only the
 Settings panel), and for Fermi data `energy`, `energyRange` and
-`fermiOptions`. At runtime: `setOptions` (the `show*` flags, `axisLength`,
-`foldKPoints`, `colors`, `widths`, `energy`, `cutPlanes`; choices are kept
-when the data is swapped), `setVisible`, `setFolded`, `setLabels`, `setColor`, `setOpacity`, `setEnergy` (`setEnergy(E, true)` gives a coarse preview for a slider being dragged),
-`setCutPlanes`, and `setSeekpath` / `setFermi` to replace the k-points or
-band data in place (same lattice; settings and camera stay, the energy keeps
-its offset from E_F).
+`fermiOptions`.
+
+`fermiOptions` sets how the Fermi surfaces are built:
+
+```ts
+fermiOptions: {
+  gridStep: 1,          // march every Nth grid point (2: 8× fewer cells, less detail)
+  dragGridStep: 2,      // the same while the slider is dragged; 1 = never coarser
+  cachePrecision: 3,    // energies are cached to this many decimals
+  maxCacheSize: 128,    // surfaces kept in the cache
+  colors, opacity, clip, cutPlanes,
+}
+```
+
+While the slider is dragged the surfaces are drawn from every
+`dragGridStep`th point, and the full surface follows on release. For a big
+file (say over 100 ms per full surface), try `dragGridStep: 4`.
+
+At runtime: `setOptions` (the `show*` flags, `axisLength`,
+`foldKPoints`, `colors`, `widths`, `energy`, `cutPlanes`, `perspective`;
+choices are kept when the data is swapped), `setVisible`, `setFolded`,
+`setLabels`, `setColor`, `setOpacity`, `setEnergy` (`setEnergy(E, true)`
+previews at `dragGridStep`, for a slider being dragged), `setCutPlanes`,
+`setPerspective`, `setView`, and `setSeekpath` / `setFermi` to replace the
+k-points or band data in place (same lattice; settings and camera stay, the
+energy keeps its offset from E_F).
+
+The camera is orthographic; `perspective: true` (or the Settings toggle, or
+`setPerspective`) switches to perspective, keeping the view. `setView(name)`
+looks along `"x"`, `"y"`, `"z"`, a reciprocal vector `"b1"`–`"b3"`, or
+`"b1*"`–`"b3*"`, the real-space axes a1–a3 (each perpendicular to the other
+two b's); `"default"` is the starting view.
 
 To cut the Fermi surfaces open, pass planes as a point and a normal in
 Cartesian k; the side the normal points to is removed:
@@ -111,15 +137,40 @@ new BZVisualizer(el, seekpathJson, {
 vis.setCutPlanes([]); // remove the cuts
 ```
 
-The viewer ignores the mouse until clicked. Left-drag rotates, right-drag
-pans, the wheel zooms. Over the top of the viewer float camera buttons, the
+The viewer ignores the mouse until clicked (`clickToInteract: false` turns
+this off), so the page scrolls normally over it. Left-drag rotates,
+right-drag pans, the wheel zooms. The hint is the `interactGuard` option:
+`overlayGuard` (default: on hover, dims the scene and says "Click to
+interact"; themed with `--bzv-overlay-background` and
+`--bzv-overlay-color`), `false` for none, or your own:
+
+```ts
+import type { InteractGuard } from "bz-visualizer";
+
+// Any element; show it while `viewer.isInteractive` is false
+const myGuard: InteractGuard = (viewer) => {
+  const hint = document.createElement("div");
+  hint.className = "my-hint";
+  hint.textContent = "Click to explore";
+  const sync = () => (hint.hidden = viewer.isInteractive);
+  viewer.container.addEventListener("interactivechange", sync);
+  sync();
+  return hint;
+};
+```
+
+The guards are in `src/ui/guards/`.
+
+Over the top of the viewer float camera buttons, the
 energy slider, and a Settings panel with the layer toggles and colours.
 
 ### Your own controls
 
 Pass `controls: false` and build them from the public API. Read the state
 with `isVisible`, `getColor`, `getOpacity`, `energy`, `folded`,
-`labelsShown`, `clipping` and `fermiSurface`; change it with the setters;
+`labelsShown`, `clipping` and `fermiSurface` (its `energyRanges` give each
+band's [min, max], so a band has a surface at E when min ≤ E ≤ max); change it
+with the setters;
 redraw when `vis.element` fires `"statechange"` (after every change,
 including ones from code). The built-in panel, `src/ui/controls.ts`, is
 written this way and makes a working example.
@@ -132,6 +183,26 @@ vis.element.addEventListener("statechange", () => {
   axes.checked = vis.isVisible("axes");
 });
 ```
+
+### Drawing your own things
+
+The package exports the component, `parseBXSF`, `getBrillouinZone` and the
+types, not its scene pieces. If you know three.js, the scene is yours:
+
+```ts
+import { Mesh, MeshBasicMaterial, SphereGeometry } from "three";
+
+const marker = new Mesh(
+  new SphereGeometry(0.05),
+  new MeshBasicMaterial({ color: "red" }),
+);
+marker.position.set(0.5, 0, 0); // Cartesian k
+vis.viewer.content.add(marker); // counted when framing the view; or vis.viewer.scene
+vis.viewer.render(); // draws on demand
+```
+
+`vis.viewer` also has `camera`, `renderer`, `controls` and `labelRenderer`,
+and `vis.bz` / `vis.reciprocalBasis` give the zone and the lattice.
 
 ## Styling
 

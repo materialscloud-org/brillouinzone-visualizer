@@ -9,9 +9,12 @@ export default defineConfig({
       entry: {
         index: resolve(import.meta.dirname, "src/index.ts"),
         react: resolve(import.meta.dirname, "react/index.ts"),
+        // The stylesheet, with its @imports (the guards' CSS) inlined
+        style: resolve(import.meta.dirname, "src/style.css"),
       },
       formats: ["es"],
     },
+    cssCodeSplit: true, // allows the CSS entry above
     rollupOptions: {
       // Peer dependencies: three (and its addons) and React stay out of the bundle
       external: [/^three($|\/)/, /^react($|\/)/, /^react-dom($|\/)/],

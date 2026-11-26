@@ -1,6 +1,5 @@
 import type { BZVisualizer } from "../bzVisualizer";
 import type { FermiSurface } from "../fermi/fermiSurface";
-import { VIEWS } from "../viewer";
 import {
   button,
   checkbox,
@@ -180,10 +179,10 @@ export function buildControls(
     el("div", "bzv-row", [
       el("div", "bzv-group", [
         "Camera:",
-        button("x", () => vis.viewer.fit(vis.viewer.content, VIEWS.x)),
-        button("y", () => vis.viewer.fit(vis.viewer.content, VIEWS.y)),
-        button("z", () => vis.viewer.fit(vis.viewer.content, VIEWS.z)),
-        button("reset", () => vis.viewer.fit()),
+        button("x", () => vis.setView("x")),
+        button("y", () => vis.setView("y")),
+        button("z", () => vis.setView("z")),
+        button("reset", () => vis.setView("default")),
       ]),
       energy,
       settingsButton,
@@ -238,6 +237,13 @@ export function buildControls(
           "Labels",
           () => vis.labelsShown,
           (on) => vis.setLabels(on),
+        ),
+      ]),
+      el("div", "bzv-panel-row", [
+        check(
+          "Perspective",
+          () => vis.perspective,
+          (on) => vis.setPerspective(on),
         ),
       ]),
       ...(surface ? bandControls(surface) : []),

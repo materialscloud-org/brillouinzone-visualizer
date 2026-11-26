@@ -115,13 +115,16 @@ class BZVisualizer(anywidget.AnyWidget):
             options=options,
         )
 
+    VIEWS = ("x", "y", "z", "b1", "b2", "b3", "b1*", "b2*", "b3*", "reset")
+
     def view(self, direction: str = "reset") -> None:
-        """Look along x, y or z, or back at the default view ("reset").
+        """Look along x, y or z, a reciprocal vector b1-b3, b1*-b3* (the
+        real-space axes a1-a3), or back at the default view ("reset").
 
         Needs the widget on screen: the message goes to the views showing it.
         """
-        if direction not in ("x", "y", "z", "reset"):
-            raise ValueError('direction must be "x", "y", "z" or "reset"')
+        if direction not in self.VIEWS:
+            raise ValueError(f"direction must be one of {self.VIEWS}")
         self.send({"type": "view", "direction": direction})
 
     @traitlets.validate("camera")

@@ -9,7 +9,6 @@ import {
 
 import {
   BZVisualizer as Core,
-  sameLattice,
   type BZVisualizerOptions,
   type CameraState,
   type CutPlane,
@@ -17,6 +16,7 @@ import {
   type Matrix,
   type SeekpathJSON,
 } from "../src";
+import { sameLattice } from "../src/brillouinZone";
 
 export interface BZVisualizerProps extends Omit<BZVisualizerOptions, "fermi"> {
   /** Zone, k-path and k-points (SeeK-path JSON or the same shape). */
@@ -47,7 +47,7 @@ function zoneKey(seekpath?: SeekpathJSON, fermi?: FermiSurfaceData) {
  *   A new lattice, or a change to an option that shapes the widget
  *   (`controls`, `energyRange`, `fermiOptions`, …), rebuilds it; the camera
  *   is kept if the lattice is the same.
- * - `energy`, `cutPlanes`, `colors`, `widths` and the `show*`/`foldKPoints` flags are
+ * - `energy`, `cutPlanes`, `colors`, `widths`, `perspective` and the `show*`/`foldKPoints` flags are
  *   applied to the live widget, and the settings panel follows them.
  * - The ref gives the widget itself, for anything else (`setOpacity`,
  *   `viewer.getCameraState()`, …).
@@ -78,6 +78,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
       showLabels,
       colors,
       widths,
+      perspective,
       ...shape
     } = options;
     const zone = zoneKey(seekpath, fermi);
@@ -94,6 +95,7 @@ export const BZVisualizer = forwardRef<Core | null, BZVisualizerProps>(
       showLabels,
       colors,
       widths,
+      perspective,
       cutPlanes: cutPlanes ?? [],
     });
 

@@ -1,6 +1,6 @@
 // The cut box settings and the cut planes they stand for.
 
-import { basisVectors, getBrillouinZone } from "bz-visualizer";
+import { getBrillouinZone } from "bz-visualizer";
 
 export const AXES = ["kx", "ky", "kz"];
 export const B_VECTORS = ["b₁", "b₂", "b₃"];
@@ -21,7 +21,10 @@ export const NO_CUT = {
  */
 export function cutPlanes(cut, reciprocalBasis) {
   if (!cut.on) return [];
-  const b = basisVectors(reciprocalBasis).map((v) => v.toArray());
+  // Rows of the (row-major) basis: b1, b2, b3
+  const b = [0, 1, 2].map((i) =>
+    Array.from(reciprocalBasis.data.slice(3 * i, 3 * i + 3)),
+  );
   const directions = {
     kx: [1, 0, 0],
     ky: [0, 1, 0],

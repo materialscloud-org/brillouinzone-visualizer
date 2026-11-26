@@ -36,7 +36,7 @@ export function label(
   if (color) div.style.color = color;
   const obj = new CSS2DObject(div);
   obj.position.copy(position);
-  // Sit just above-right of the anchor instead of centred on it
+  // Sit just above-right of the anchor instead of centered on it
   obj.center.set(-0.15, 1.1);
   return obj;
 }

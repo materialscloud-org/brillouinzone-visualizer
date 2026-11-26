@@ -2,11 +2,11 @@ import { createRender, useModel, useModelState } from "@anywidget/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   parseBXSF,
-  VIEWS,
   type BZVisualizer as Core,
   type BZVisualizerOptions,
   type CameraState,
   type SeekpathJSON,
+  type ViewName,
 } from "bz-visualizer";
 import { BZVisualizer } from "bz-visualizer/react";
 import "bz-visualizer/style.css";
@@ -58,8 +58,9 @@ function Widget() {
     const onClick = () => requestAnimationFrame(report);
     const onMessage = (msg: { type?: string; direction?: string }) => {
       if (msg.type !== "view") return;
-      if (msg.direction === "reset") viewer.fit();
-      else viewer.fit(viewer.content, VIEWS[msg.direction as "x" | "y" | "z"]);
+      vis.setView(
+        msg.direction === "reset" ? "default" : (msg.direction as ViewName),
+      );
       report();
     };
     viewer.controls.addEventListener("end", report);
