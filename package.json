@@ -1,6 +1,6 @@
 {
   "name": "brillouinzone-visualizer",
-  "version": "0.4.4",
+  "version": "1.0.0",
   "description": "Javascript package to visualize the Brillouin zone of crystals, k-points and Fermi surfaces.",
   "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
   "bugs": {
