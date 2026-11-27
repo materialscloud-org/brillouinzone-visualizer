@@ -2,5 +2,5 @@ node_modules
 dist
 *.local
 
-# Too large for git hosting (224 MB); copy it from ../bxsf
+# Too large for git hosting (224 MB)
 demo/data/wjl.bxsf
