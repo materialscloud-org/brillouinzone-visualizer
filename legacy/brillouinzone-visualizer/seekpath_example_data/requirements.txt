@@ -1,3 +1,0 @@
-seekpath
-ase
-numpy
