@@ -80,13 +80,11 @@ describe("getBrillouinZone", () => {
     });
   }
 
-  it("matches the zone shipped in the legacy Fermi JSON", () => {
+  it("matches the zone computed by the old fermisurface-visualiser", () => {
+    // Its reciprocal vectors and zone corners, kept from its example data
     const legacy = JSON.parse(
-      readFileSync(
-        "legacy/fermisurface-visualiser/fermisurface-vis/public/data.json",
-        "utf8",
-      ),
-    ).brillouinZone;
+      readFileSync("tests/data/legacy-zone.json", "utf8"),
+    );
     const bz = getBrillouinZone(basis(legacy.reciprocalVectors));
     const key = (v: number[]) => v.map((x) => x.toFixed(4)).join();
     const ours = new Set<string>();

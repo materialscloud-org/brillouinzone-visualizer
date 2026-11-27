@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // Don't crawl legacy/ for dependencies; the demo is the only page
+  // The demo is the only page: don't crawl the other folders for dependencies
   optimizeDeps: { entries: ["index.html"] },
   build: {
     lib: {

@@ -7,12 +7,13 @@ zone (BZ) of crystal structures: the high-symmetry k-path, explicit
 k-points or meshes, and Fermi surfaces from band grids (`.bxsf` files).
 
 The main input is the `json` generated from a crystal structure by
-[seekpath](https://github.com/giovannipizzi/seekpath); see
-`legacy/brillouinzone-visualizer/seekpath_example_data` and `demo/data/`.
+[seekpath](https://github.com/giovannipizzi/seekpath); see `demo/data/` for
+examples.
 
 Version 1 is a rewrite that also replaces
 [fermisurface-visualiser](https://github.com/materialscloud-org/fermisurface-visualiser);
-both earlier projects are kept in `legacy/`. A Jupyter widget is in
+the code of both earlier projects is in this repository's git history
+(before `17b359a`). A Jupyter widget is in
 `bz-widget/` (the earlier one: [widget-bzvisualizer](https://github.com/osscar-org/widget-bzvisualizer)).
 
 ## Usage
