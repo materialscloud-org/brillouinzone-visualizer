@@ -1,27 +1,50 @@
 {
-  "name": "brillouinzone-visualizer",
-  "version": "0.4.4",
-  "description": "Javascript package to visualize the Brillouin zone of crystals.",
-  "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
-  "bugs": {
-    "url": "https://github.com/materialscloud-org/brillouinzone-visualizer/issues"
-  },
+  "name": "bz-visualizer",
+  "version": "0.0.1",
+  "private": true,
   "type": "module",
-  "module": "dist/main.js",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
-  "dependencies": {
-    "three": "~0.180.0"
+  "peerDependencies": {
+    "react": ">=18",
+    "three": ">=0.170.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "vite": "^7.1.12",
-    "vite-plugin-lib-inject-css": "^2.0.0"
+    "@types/node": "^26.6.6",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.187.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12"
   }
 }

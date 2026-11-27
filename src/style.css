@@ -1,20 +1,68 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/*
+ * bz-visualizer styles. Import once: `import "bz-visualizer/style.css"`.
+ * Theme by overriding the variables on `.bzv` (or any ancestor).
+ */
 
-  color: #213547;
-  background-color: #e3fbff;
+/* The controls bar and settings panel (src/ui/controls.ts) */
+@import "./ui/controls.css";
+/* The "click to interact" overlay (src/ui/guards/overlay.ts) */
+@import "./ui/guards/overlay.css";
+.bzv {
+  --bzv-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    sans-serif;
+  --bzv-font-size: 14px;
+  --bzv-text: #222;
+  --bzv-background: #fff;
+  --bzv-border: #999;
+  --bzv-radius: 5px;
+  --bzv-control-background: none;
+  --bzv-button-background: none;
+  --bzv-button-hover: #dedede;
+  --bzv-accent: #1571cd;
+  --bzv-panel-width: 220px;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  height: 100%;
+  min-width: 250px;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--bzv-border);
+  border-radius: var(--bzv-radius);
+  background: var(--bzv-background);
+  color: var(--bzv-text);
+  font: var(--bzv-font-size) var(--bzv-font);
 }
 
-.bzvis {
+.bzv,
+.bzv *,
+.bzv *::before,
+.bzv *::after {
   box-sizing: border-box;
-  padding: 20px;
-  width: 100%;
-  height: 400px;
+}
+
+/* Controls for absent layers are hidden; win over the display rules below */
+.bzv [hidden] {
+  display: none !important;
+}
+
+/* --- 3D window ------------------------------------------------------------ */
+
+.bzv-window {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.bzv-window canvas {
+  display: block;
+}
+
+.bzv-label {
+  font-size: 15px;
+  color: var(--bzv-label-color, #555);
+  /* A glow keeps labels readable over the scene */
+  text-shadow: var(--bzv-label-glow, 0 0 5px #fff, 0 0 2px #fff, 0 0 3px #fff);
 }

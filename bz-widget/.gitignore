@@ -1,0 +1,6 @@
+node_modules/
+# Built by `pnpm build`; packaged into the wheel, not committed
+src/bz_widget/static/
+__pycache__/
+.ipynb_checkpoints/
+dist/

@@ -1,5 +1,6 @@
-/node_modules
-/coverage
-/dist
-
+# The original projects keep their own history and formatting
+legacy/
+# Example data
+demo/data/
+webapp/public/examples/
 pnpm-lock.yaml

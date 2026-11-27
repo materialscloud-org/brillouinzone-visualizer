@@ -1,0 +1,35 @@
+/* overlayGuard: a layer over the scene and the controls (z-index above the
+   controls bar's 3), invisible until hovered. */
+.bzv-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bzv-overlay-color, #fff);
+  font-size: 2rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.bzv-overlay:hover {
+  background: var(--bzv-overlay-background, rgba(0, 0, 0, 0.25));
+}
+
+.bzv-overlay span {
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.bzv-overlay:hover span {
+  opacity: 1;
+}
+
+.bzv-overlay[hidden] {
+  display: none;
+}
