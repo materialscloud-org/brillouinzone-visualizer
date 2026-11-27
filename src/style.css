@@ -5,7 +5,7 @@
 
 /* The controls bar and settings panel (src/ui/controls.ts) */
 @import "./ui/controls.css";
-/* The "click to interact" hints, one file per guard in src/ui/guards/ */
+/* The "click to interact" overlay (src/ui/guards/overlay.ts) */
 @import "./ui/guards/overlay.css";
 .bzv {
   --bzv-font:

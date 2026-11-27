@@ -1,4 +1,5 @@
-/* overlayGuard: over the scene, */
+/* overlayGuard: a layer over the scene and the controls (z-index above the
+   controls bar's 3), invisible until hovered. */
 .bzv-overlay {
   position: absolute;
   inset: 0;
