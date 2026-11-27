@@ -1,8 +1,19 @@
 {
-  "name": "bz-visualizer",
-  "version": "0.0.1",
-  "private": true,
+  "name": "brillouinzone-visualizer",
+  "version": "0.4.4",
+  "description": "Javascript package to visualize the Brillouin zone of crystals, k-points and Fermi surfaces.",
+  "homepage": "https://github.com/materialscloud-org/brillouinzone-visualizer",
+  "bugs": {
+    "url": "https://github.com/materialscloud-org/brillouinzone-visualizer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/materialscloud-org/brillouinzone-visualizer.git"
+  },
+  "license": "BSD-3-Clause",
   "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
   "sideEffects": [
     "**/*.css"
   ],
@@ -24,7 +35,8 @@
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "vite preview"
   },
   "peerDependencies": {
     "react": ">=18",
